@@ -1,0 +1,186 @@
+{
+  "periods": [
+    "202511",
+    "202512",
+    "202601",
+    "202602",
+    "202603",
+    "202604"
+  ],
+  "facilities": {
+    "Addi Arekay Health Center": {
+      "uid": "aV3ume00zx5",
+      "type": "HC",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "OK"
+      }
+    },
+    "Adi Goshu Health Post": {
+      "uid": "Qy5yPBNcD1V",
+      "type": "HP",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "ok_with_issue"
+      }
+    },
+    "Adi Selam Health Post": {
+      "uid": "cU7DVb1DGuo",
+      "type": "HP",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "OK"
+      }
+    },
+    "Beyeda Health Center": {
+      "uid": "a9pPfGUQzvk",
+      "type": "HC",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "OK"
+      }
+    },
+    "Addis Alem Health Post": {
+      "uid": "yyqQ6L68yKl",
+      "type": "HP",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "OK"
+      }
+    },
+    "Janamora Health Center": {
+      "uid": "EHiRJ77gOtK",
+      "type": "HC",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "OK"
+      }
+    },
+    "Limalimo Health Post": {
+      "uid": "PunEEFHArGE",
+      "type": "HP",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "ok_with_issue"
+      }
+    },
+    "Debark Primary Hospital": {
+      "uid": "zP98QEEjXy3",
+      "type": "H",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "OK"
+      }
+    },
+    "Debark Health Center": {
+      "uid": "mCmLbM8EENv",
+      "type": "HC",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "OK"
+      }
+    },
+    "Amba Giorgis Health Post": {
+      "uid": "YDNYjYhnyse",
+      "type": "HP",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "OK"
+      }
+    },
+    "Dabat Health Center": {
+      "uid": "JNzFPpH9VpT",
+      "type": "HC",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "OK"
+      }
+    },
+    "Bichena Health Post": {
+      "uid": "IX6H6tmKeab",
+      "type": "HP",
+      "periods": {
+        "202511": "OK",
+        "202512": "OK",
+        "202601": "OK",
+        "202602": "OK",
+        "202603": "OK",
+        "202604": "missing"
+      }
+    }
+  },
+  "dq_issues": [
+    {
+      "type": "missing_report",
+      "facility": "Bichena Health Post",
+      "uid": "IX6H6tmKeab",
+      "period": "202604",
+      "description": "No data submitted for Apr 2026"
+    },
+    {
+      "type": "outlier",
+      "facility": "Limalimo Health Post",
+      "uid": "PunEEFHArGE",
+      "period": "202604",
+      "data_element": "BCG doses administered (<1yr)",
+      "value": 350,
+      "normal_range": "30\u201345",
+      "description": "BCG <1yr = 350 vs. normal 30\u201345 for a health post (~10x)"
+    },
+    {
+      "type": "dtp1_dtp3_inconsistency",
+      "facility": "Adi Goshu Health Post",
+      "uid": "Qy5yPBNcD1V",
+      "period": "202604",
+      "penta1_u1": 45,
+      "penta3_u1": 80,
+      "description": "Penta3 <1yr (80) > Penta1 <1yr (45) \u2014 implausible, 3rd dose > 1st dose"
+    }
+  ],
+  "errors": [],
+  "generated_at": "2026-05-18T19:58:00.783198+00:00"
+}

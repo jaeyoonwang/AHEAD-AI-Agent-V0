@@ -1,0 +1,27 @@
+services:
+  db:
+    image: ghcr.io/baosystems/postgis:13-3.4
+    environment:
+      POSTGRES_DB: dhis2
+      POSTGRES_USER: dhis
+      POSTGRES_PASSWORD: dhis
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  web:
+    image: dhis2/core:2.40
+    depends_on:
+      - db
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dhis.conf:/opt/dhis2/dhis.conf:ro
+      - dhis2-home:/opt/dhis2
+    environment:
+      JAVA_OPTS: "-Xms1g -Xmx3g"
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  dhis2-home:

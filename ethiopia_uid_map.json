@@ -1,0 +1,157 @@
+{
+  "ethiopia": {
+    "uid": "RFhqluFmvRG",
+    "name": "Ethiopia",
+    "level": 1
+  },
+  "amhara": {
+    "uid": "pQp6IYF9XTk",
+    "name": "Amhara",
+    "level": 2
+  },
+  "north_gondar": {
+    "uid": "vVYYzr9uxpw",
+    "name": "North Gondar",
+    "level": 3
+  },
+  "woredas": {
+    "ET0301W01": {
+      "uid": "JQfos81QQwR",
+      "name": "Addi Arekay Woreda",
+      "level": 4,
+      "code": "ET0301W01"
+    },
+    "ET0301W02": {
+      "uid": "q7rtntqkslb",
+      "name": "Beyeda Woreda",
+      "level": 4,
+      "code": "ET0301W02"
+    },
+    "ET0301W03": {
+      "uid": "pNcBfXXY6tw",
+      "name": "Janamora Woreda",
+      "level": 4,
+      "code": "ET0301W03"
+    },
+    "ET0301W04": {
+      "uid": "oCTiz0yyUVZ",
+      "name": "Debark Woreda",
+      "level": 4,
+      "code": "ET0301W04"
+    },
+    "ET0301W05": {
+      "uid": "QLJhV953SqK",
+      "name": "Dabat Woreda",
+      "level": 4,
+      "code": "ET0301W05"
+    }
+  },
+  "facilities": {
+    "ET0301W01_ADDI_AREKAY_HEALTH_C": {
+      "uid": "aV3ume00zx5",
+      "name": "Addi Arekay Health Center",
+      "level": 5,
+      "code": "ET0301W01_ADDI_AREKAY_HEALTH_C",
+      "woreda": "Addi Arekay Woreda",
+      "woreda_uid": "JQfos81QQwR"
+    },
+    "ET0301W01_ADI_GOSHU_HEALTH_POS": {
+      "uid": "Qy5yPBNcD1V",
+      "name": "Adi Goshu Health Post",
+      "level": 5,
+      "code": "ET0301W01_ADI_GOSHU_HEALTH_POS",
+      "woreda": "Addi Arekay Woreda",
+      "woreda_uid": "JQfos81QQwR"
+    },
+    "ET0301W01_ADI_SELAM_HEALTH_POS": {
+      "uid": "cU7DVb1DGuo",
+      "name": "Adi Selam Health Post",
+      "level": 5,
+      "code": "ET0301W01_ADI_SELAM_HEALTH_POS",
+      "woreda": "Addi Arekay Woreda",
+      "woreda_uid": "JQfos81QQwR"
+    },
+    "ET0301W02_BEYEDA_HEALTH_CENTER": {
+      "uid": "a9pPfGUQzvk",
+      "name": "Beyeda Health Center",
+      "level": 5,
+      "code": "ET0301W02_BEYEDA_HEALTH_CENTER",
+      "woreda": "Beyeda Woreda",
+      "woreda_uid": "q7rtntqkslb"
+    },
+    "ET0301W02_ADDIS_ALEM_HEALTH_PO": {
+      "uid": "yyqQ6L68yKl",
+      "name": "Addis Alem Health Post",
+      "level": 5,
+      "code": "ET0301W02_ADDIS_ALEM_HEALTH_PO",
+      "woreda": "Beyeda Woreda",
+      "woreda_uid": "q7rtntqkslb"
+    },
+    "ET0301W03_JANAMORA_HEALTH_CENT": {
+      "uid": "EHiRJ77gOtK",
+      "name": "Janamora Health Center",
+      "level": 5,
+      "code": "ET0301W03_JANAMORA_HEALTH_CENT",
+      "woreda": "Janamora Woreda",
+      "woreda_uid": "pNcBfXXY6tw"
+    },
+    "ET0301W03_LIMALIMO_HEALTH_POST": {
+      "uid": "PunEEFHArGE",
+      "name": "Limalimo Health Post",
+      "level": 5,
+      "code": "ET0301W03_LIMALIMO_HEALTH_POST",
+      "woreda": "Janamora Woreda",
+      "woreda_uid": "pNcBfXXY6tw"
+    },
+    "ET0301W04_DEBARK_PRIMARY_HOSPI": {
+      "uid": "zP98QEEjXy3",
+      "name": "Debark Primary Hospital",
+      "level": 5,
+      "code": "ET0301W04_DEBARK_PRIMARY_HOSPI",
+      "woreda": "Debark Woreda",
+      "woreda_uid": "oCTiz0yyUVZ"
+    },
+    "ET0301W04_DEBARK_HEALTH_CENTER": {
+      "uid": "mCmLbM8EENv",
+      "name": "Debark Health Center",
+      "level": 5,
+      "code": "ET0301W04_DEBARK_HEALTH_CENTER",
+      "woreda": "Debark Woreda",
+      "woreda_uid": "oCTiz0yyUVZ"
+    },
+    "ET0301W04_AMBA_GIORGIS_HEALTH_": {
+      "uid": "YDNYjYhnyse",
+      "name": "Amba Giorgis Health Post",
+      "level": 5,
+      "code": "ET0301W04_AMBA_GIORGIS_HEALTH_",
+      "woreda": "Debark Woreda",
+      "woreda_uid": "oCTiz0yyUVZ"
+    },
+    "ET0301W05_DABAT_HEALTH_CENTER": {
+      "uid": "JNzFPpH9VpT",
+      "name": "Dabat Health Center",
+      "level": 5,
+      "code": "ET0301W05_DABAT_HEALTH_CENTER",
+      "woreda": "Dabat Woreda",
+      "woreda_uid": "QLJhV953SqK"
+    },
+    "ET0301W05_BICHENA_HEALTH_POST": {
+      "uid": "IX6H6tmKeab",
+      "name": "Bichena Health Post",
+      "level": 5,
+      "code": "ET0301W05_BICHENA_HEALTH_POST",
+      "woreda": "Dabat Woreda",
+      "woreda_uid": "QLJhV953SqK"
+    }
+  },
+  "user_roles": {
+    "entry": {
+      "uid": "jlmfoEHyeSR",
+      "name": "EPI Data Entry"
+    },
+    "viewer": {
+      "uid": "rU10bqQk3SC",
+      "name": "EPI Data Viewer"
+    }
+  }
+}
