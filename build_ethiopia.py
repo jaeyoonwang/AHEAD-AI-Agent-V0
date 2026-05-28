@@ -18,10 +18,11 @@ Facility names follow standard Ethiopian naming conventions.
 Output: ethiopia_uid_map.json
 """
 
-import json, urllib.request, urllib.error, base64, random, string, sys
+import json, urllib.request, urllib.error, base64, random, string, sys, os
 
-AUTH    = base64.b64encode(b'admin:district').decode()
-BASE    = 'http://localhost:8080/api'
+_creds  = f"{os.environ.get('DHIS2_ADMIN_USER', '')}:{os.environ.get('DHIS2_ADMIN_PASS', '')}"
+AUTH    = base64.b64encode(_creds.encode()).decode()
+BASE    = os.environ.get('DHIS2_BASE_URL', 'http://localhost:8080/api')
 HEADERS = {'Authorization': f'Basic {AUTH}', 'Content-Type': 'application/json'}
 
 # ── UID generation ────────────────────────────────────────────────────────────

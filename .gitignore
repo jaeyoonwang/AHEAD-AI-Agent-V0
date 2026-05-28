@@ -10,9 +10,14 @@
 __pycache__/
 *.py[cod]
 *.pyo
-.env
 venv/
 .venv/
+
+# Environment / secrets — copy .env.example to .env and fill in values
+.env
+
+# DHIS2 config — copy dhis.conf.example to dhis.conf and fill in password
+dhis.conf
 
 # Temp files
 ~$*

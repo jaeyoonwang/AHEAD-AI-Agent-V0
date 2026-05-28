@@ -18,10 +18,11 @@ Source for admin levels: UN OCHA HDX COD-AB April 2025
   https://data.humdata.org/dataset/cod-ab-eth
 """
 
-import json, urllib.request, urllib.error, base64, sys
+import json, urllib.request, urllib.error, base64, sys, os
 
-AUTH   = base64.b64encode(b'admin:district').decode()
-BASE   = 'http://localhost:8080/api'
+_creds  = f"{os.environ.get('DHIS2_ADMIN_USER', '')}:{os.environ.get('DHIS2_ADMIN_PASS', '')}"
+AUTH    = base64.b64encode(_creds.encode()).decode()
+BASE    = os.environ.get('DHIS2_BASE_URL', 'http://localhost:8080/api')
 HEADERS = {
     'Authorization': f'Basic {AUTH}',
     'Content-Type': 'application/json',

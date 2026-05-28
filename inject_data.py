@@ -20,13 +20,14 @@ Three seeded data quality issues in April 2026 (202604):
 Output: data_injection_log.json
 """
 
-import json, urllib.request, urllib.error, base64, random, sys
+import json, urllib.request, urllib.error, base64, random, sys, os
 from datetime import datetime, timezone
 
 random.seed(42)  # deterministic — same values on every run
 
-AUTH    = base64.b64encode(b'admin:district').decode()
-BASE    = 'http://localhost:8080/api'
+_creds  = f"{os.environ.get('DHIS2_ADMIN_USER', '')}:{os.environ.get('DHIS2_ADMIN_PASS', '')}"
+AUTH    = base64.b64encode(_creds.encode()).decode()
+BASE    = os.environ.get('DHIS2_BASE_URL', 'http://localhost:8080/api')
 HEADERS = {'Authorization': f'Basic {AUTH}', 'Content-Type': 'application/json'}
 
 ROUTINE_DS = 'vI4ihClxSm4'

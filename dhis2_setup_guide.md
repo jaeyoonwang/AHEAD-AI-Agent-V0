@@ -26,6 +26,16 @@ The prototype covers:
 - Python 3.x (stdlib only — no pip installs required)
 - ~4 GB disk space for DHIS2 + PostgreSQL volumes
 
+## Setup
+
+Copy the example files and fill in your credentials before running anything:
+
+```bash
+cp .env.example .env
+cp dhis.conf.example dhis.conf
+# Edit .env and dhis.conf — set POSTGRES_PASSWORD and DHIS2_USER_PASSWORD
+```
+
 ---
 
 ## Directory structure
@@ -54,9 +64,9 @@ services:
   db:
     image: ghcr.io/baosystems/postgis:13-3.4
     environment:
-      POSTGRES_DB: dhis2
-      POSTGRES_USER: dhis
-      POSTGRES_PASSWORD: dhis
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - db-data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -81,12 +91,14 @@ volumes:
 
 ### 1b. dhis.conf
 
+Copy `dhis.conf.example` to `dhis.conf` and set `connection.password` to match `POSTGRES_PASSWORD` in your `.env`.
+
 ```
 connection.dialect = org.hibernate.dialect.PostgreSQLDialect
 connection.driver_class = org.postgresql.Driver
 connection.url = jdbc:postgresql://db/dhis2
 connection.username = dhis
-connection.password = dhis
+connection.password = <your_db_password>
 connection.pool.max_size = 20
 ```
 
@@ -104,7 +116,7 @@ curl -s -o /dev/null -w "%{http_code}" \
 # → 200
 ```
 
-Default admin credentials: `admin` / `district`
+Default admin credentials: set via `DHIS2_ADMIN_USER` / `DHIS2_ADMIN_PASS` in `.env`
 
 ---
 
@@ -261,7 +273,7 @@ Creates two user roles and five users, one per administrative level.
 
 ### Users
 
-All passwords: `Ethiopia@2024`
+All passwords: set via `DHIS2_USER_PASSWORD` in `.env`
 
 | Username | UID | Role | Org unit scope |
 |---|---|---|---|
@@ -332,12 +344,12 @@ URL: `http://localhost:8080`
 
 | Username | Password | Role | What they can see / do |
 |---|---|---|---|
-| `admin` | `district` | Superuser | Full access to all org units, settings, and metadata |
-| `eth_facility_01` | `Ethiopia@2024` | EPI Data Entry | Submit data for Debark Primary Hospital only |
-| `eth_woreda_01` | `Ethiopia@2024` | EPI Data Entry | Submit data for any facility in Debark Woreda |
-| `eth_zone_01` | `Ethiopia@2024` | EPI Data Viewer | View data across all of North Gondar Zone |
-| `eth_regional_01` | `Ethiopia@2024` | EPI Data Viewer | View data across all of Amhara Region |
-| `eth_national_01` | `Ethiopia@2024` | EPI Data Viewer | View data across all of Ethiopia |
+| `admin` | `DHIS2_ADMIN_PASS` (from `.env`) | Superuser | Full access to all org units, settings, and metadata |
+| `eth_facility_01` | `DHIS2_USER_PASSWORD` (from `.env`) | EPI Data Entry | Submit data for Debark Primary Hospital only |
+| `eth_woreda_01` | `DHIS2_USER_PASSWORD` (from `.env`) | EPI Data Entry | Submit data for any facility in Debark Woreda |
+| `eth_zone_01` | `DHIS2_USER_PASSWORD` (from `.env`) | EPI Data Viewer | View data across all of North Gondar Zone |
+| `eth_regional_01` | `DHIS2_USER_PASSWORD` (from `.env`) | EPI Data Viewer | View data across all of Amhara Region |
+| `eth_national_01` | `DHIS2_USER_PASSWORD` (from `.env`) | EPI Data Viewer | View data across all of Ethiopia |
 
 Data entry users (`eth_facility_01`, `eth_woreda_01`) can submit data within their scope but are blocked from submitting to org units outside it. Viewer users can view but not edit.
 

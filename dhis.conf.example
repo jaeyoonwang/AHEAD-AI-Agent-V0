@@ -2,5 +2,5 @@ connection.dialect = org.hibernate.dialect.PostgreSQLDialect
 connection.driver_class = org.postgresql.Driver
 connection.url = jdbc:postgresql://db/dhis2
 connection.username = dhis
-connection.password = dhis
+connection.password = your_db_password
 connection.pool.max_size = 20
