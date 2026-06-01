@@ -76,6 +76,8 @@ body('This document specifies the technical implementation of the AHEAD AI agent
 sp()
 body('This specification covers the DHIS2 service account, DQ engine checks (with exact API endpoints), SQLite database schema, cascade state machine, Claude API integration, Twilio SMS integration, Flask application endpoints, APScheduler jobs, Docker Compose deployment, and all environment variables.')
 sp()
+body('Historical data note: the DHIS2 instance is loaded with 28 months of synthetic EPI data (Jan 2024 – Apr 2026) across all 12 facilities. The 22-month baseline (Jan 2024 – Oct 2025) provides the historical distribution required for meaningful Z-score outlier detection. The 6-month active window (Nov 2025 – Apr 2026) contains the three seeded DQ issues in the final period.')
+sp()
 
 # ── 2. Architecture Diagram ───────────────────────────────────────────────────
 h1('2. Architecture Diagram')
@@ -488,8 +490,8 @@ tbl(
          'On-demand (triggered by poll_changes when changes detected)',
          'Runs outlier detection and DTP validation only for the (orgUnit, period) pairs identified by poll_changes. Not on a fixed schedule — fires only when new data is present. Deduplicates against open issues before creating new records.'],
         ['check_missing_reports',
-         'Daily at 08:00 EAT (from day 5 of month)',
-         'Queries completeDataSetRegistrations for prior month. Flags facilities with no registration. Skips if prior to day 5.'],
+         'Daily at 08:00 EAT',
+         'Queries completeDataSetRegistrations for prior month. Flags facilities with no registration. Only runs if today >= MISSING_REPORT_START_DAY (default: 10th of the month). Configurable so programs can match their own reporting deadline.'],
         ['process_timers',
          'Every 30 minutes',
          'Scans open issues: sends retry SMS if 24h elapsed and retry_count < 3; escalates to next cascade level if 72h elapsed at current level; escalates zone→region→national on weekly cadence.'],
@@ -523,7 +525,7 @@ mono(
     '      TWILIO_FROM_NUMBER:   ${TWILIO_FROM_NUMBER}\n'
     '      OUTLIER_THRESHOLD:    3.0\n'
     '      POLL_INTERVAL_SEC:    30\n'
-    '      MISSING_REPORT_DAY:   5\n'
+    '      MISSING_REPORT_START_DAY: 10\n'
     '    depends_on:\n'
     '      - web\n'
     '    restart: unless-stopped\n'
@@ -557,7 +559,7 @@ tbl(
         ['TWILIO_FROM_NUMBER',   'Agent',                'Twilio sending phone number (E.164 format)'],
         ['OUTLIER_THRESHOLD',    'Agent',                'Z-score threshold for outlier detection (default: 3.0)'],
         ['POLL_INTERVAL_SEC',    'Agent',                'lastUpdated poll interval in seconds (default: 30). DQ checks only fire when changes are found — this controls detection latency, not API cost.'],
-        ['MISSING_REPORT_DAY',   'Agent',                'Day of month to start missing report checks (default: 5)'],
+        ['MISSING_REPORT_START_DAY', 'Agent',             'Day of the following month to begin checking for missing reports (default: 10). Set this to match your program\'s data-entry deadline. George\'s team should confirm the exact deadline for Ethiopia before going live.'],
         ['POSTGRES_DB',          'docker-compose.yml',   'PostgreSQL database name (DHIS2 only)'],
         ['POSTGRES_USER',        'docker-compose.yml',   'PostgreSQL username'],
         ['POSTGRES_PASSWORD',    'docker-compose.yml',   'PostgreSQL password'],

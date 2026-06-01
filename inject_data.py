@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
-Phase 5: Inject 6 months of synthetic EPI data for all 12 facilities.
+Phase 5: Inject synthetic EPI data for all 12 facilities.
 
-Periods covered: Nov 2025 – Apr 2026 (202511 – 202604)
+Period coverage:
+  Baseline : Jan 2024 – Oct 2025 (22 months, clean — used as Z-score baseline)
+  Active   : Nov 2025 – Apr 2026  (6 months, seeded DQ issues in Apr 2026)
+
 Dataset: EPI - Routine vaccine delivery (vI4ihClxSm4)
 Vaccines: BCG, Penta1 (DTP1), Penta3 (DTP3), MR 1 (MCV1)
 Disaggregation: <1 year / 1+ year
@@ -12,15 +15,19 @@ Facility volume tiers (monthly BCG <1yr doses):
   Health Center    :  80 – 115
   Health Post      :  30 –  45
 
+Seeding strategy: each (facility, period) cell gets its own deterministic
+seed derived from hashlib.md5(facility_name:period). This means adding or
+reordering periods never changes values for other cells.
+
 Three seeded data quality issues in April 2026 (202604):
-  1. MISSING REPORT   — Bichena Health Post has no data submitted for Apr 2026
-  2. OUTLIER          — Limalimo Health Post: BCG <1yr = 350 (10x the normal ~35)
+  1. MISSING REPORT        — Bichena Health Post: no data submitted
+  2. OUTLIER               — Limalimo Health Post: BCG <1yr = 350 (~10x normal)
   3. DTP1/DTP3 INCONSISTENCY — Adi Goshu Health Post: Penta3 <1yr (80) > Penta1 <1yr (45)
 
 Output: data_injection_log.json
 """
 
-import json, urllib.request, urllib.error, base64, random, sys, os, pathlib
+import json, urllib.request, urllib.error, base64, random, hashlib, sys, os, pathlib
 from datetime import datetime, timezone
 
 _env = pathlib.Path(__file__).with_name('.env')
@@ -31,17 +38,23 @@ if _env.exists():
             _k, _, _v = _line.partition('=')
             os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
 
-random.seed(42)  # deterministic — same values on every run
-
 _creds  = f"{os.environ.get('DHIS2_ADMIN_USER', '')}:{os.environ.get('DHIS2_ADMIN_PASS', '')}"
 AUTH    = base64.b64encode(_creds.encode()).decode()
 BASE    = os.environ.get('DHIS2_BASE_URL', 'http://localhost:8080/api')
 HEADERS = {'Authorization': f'Basic {AUTH}', 'Content-Type': 'application/json'}
 
 ROUTINE_DS = 'vI4ihClxSm4'
-PERIODS    = ['202511', '202512', '202601', '202602', '202603', '202604']
 
-# Data elements (all in EPI - Routine vaccine delivery dataset)
+# Baseline: 22 months of clean data for robust Z-score statistics
+BASELINE_PERIODS = (
+    [f'2024{m:02d}' for m in range(1, 13)] +   # Jan–Dec 2024
+    [f'2025{m:02d}' for m in range(1, 11)]      # Jan–Oct 2025
+)
+# Active window: 6 months; seeded DQ issues land in the last period only
+ACTIVE_PERIODS = ['202511', '202512', '202601', '202602', '202603', '202604']
+PERIODS = BASELINE_PERIODS + ACTIVE_PERIODS
+
+# Data elements (EPI - Routine vaccine delivery dataset)
 BCG    = 'WSy7zOZx1Wl'   # BCG doses administered
 PENTA1 = 'hJJlOnVOkV2'   # DPT-HepB-HIB 1 (Penta1 / DTP1)
 PENTA3 = 'TWWbtMMWD51'   # DPT-HepB-HIB 3 (Penta3 / DTP3)
@@ -50,25 +63,36 @@ MR1    = 'kGrnHR9zV2G'   # MR 1 (MCV1 equivalent)
 U1  = 'JKuWbG5bWAu'  # <1 year
 U1P = 'UIQxmxgioxH'  # 1+ year
 
+# ── Per-cell deterministic seeding ────────────────────────────────────────────
+
+def _seed(fac_name, period):
+    """Unique, stable seed for every (facility, period) cell."""
+    key = f'{fac_name}:{period}'.encode()
+    return int(hashlib.md5(key).hexdigest()[:8], 16)
+
 # ── Volume tiers ──────────────────────────────────────────────────────────────
 
-def baseline(facility_type):
+def baseline(facility_type, fac_name, period):
     """
-    Return realistic monthly dose values for a given facility type.
-    Penta1 ≈ 90% of BCG; Penta3 ≈ 80% of Penta1 (10-20% dropout is normal).
+    Return realistic monthly dose values for a facility type.
+    Penta1 ≈ 90% of BCG; Penta3 ≈ 80% of Penta1 (normal 10-20% dropout).
     MR1 ≈ 85% of BCG.
+    Seeded per (fac_name, period) so values are stable regardless of
+    how many other periods exist in the run.
     """
-    if facility_type == 'H':        # Primary hospital
-        bcg   = random.randint(280, 360)
-    elif facility_type == 'HC':     # Health center
-        bcg   = random.randint(80, 115)
-    else:                            # Health post
-        bcg   = random.randint(30, 45)
+    random.seed(_seed(fac_name, period))
 
-    p1   = int(bcg * random.uniform(0.87, 0.93))
-    p3   = int(p1  * random.uniform(0.78, 0.85))   # always < Penta1
-    mr1  = int(bcg * random.uniform(0.82, 0.90))
-    u1p  = max(1, int(bcg * random.uniform(0.04, 0.08)))  # small 1+ yr share
+    if facility_type == 'H':        # Primary hospital
+        bcg = random.randint(280, 360)
+    elif facility_type == 'HC':     # Health center
+        bcg = random.randint(80, 115)
+    else:                           # Health post
+        bcg = random.randint(30, 45)
+
+    p1  = int(bcg * random.uniform(0.87, 0.93))
+    p3  = int(p1  * random.uniform(0.78, 0.85))   # always < Penta1
+    mr1 = int(bcg * random.uniform(0.82, 0.90))
+    u1p = max(1, int(bcg * random.uniform(0.04, 0.08)))
 
     return [
         {'dataElement': BCG,    'categoryOptionCombo': U1,  'value': str(bcg)},
@@ -106,7 +130,6 @@ def post_values(ou_uid, period, values):
 with open('ethiopia_uid_map.json') as f:
     uid_map = json.load(f)
 
-# Map facility name → (uid, type)
 facilities = {}
 for code, fac in uid_map['facilities'].items():
     ftype = 'H' if 'Hospital' in fac['name'] else \
@@ -115,19 +138,25 @@ for code, fac in uid_map['facilities'].items():
 
 # ── Identify facilities for DQ issues ────────────────────────────────────────
 
-MISSING_FAC     = 'Bichena Health Post'          # Issue 1: no report Apr 2026
-OUTLIER_FAC     = 'Limalimo Health Post'         # Issue 2: BCG spike Apr 2026
-INCONSIST_FAC   = 'Adi Goshu Health Post'        # Issue 3: Penta3 > Penta1 Apr 2026
+MISSING_FAC   = 'Bichena Health Post'    # Issue 1: no report Apr 2026
+OUTLIER_FAC   = 'Limalimo Health Post'   # Issue 2: BCG spike Apr 2026
+INCONSIST_FAC = 'Adi Goshu Health Post'  # Issue 3: Penta3 > Penta1 Apr 2026
 
 # ── Inject ───────────────────────────────────────────────────────────────────
 
 print('=' * 60)
 print('Phase 5: Injecting synthetic EPI data')
-print(f'  Facilities : {len(facilities)}')
-print(f'  Periods    : {len(PERIODS)}  ({PERIODS[0]} – {PERIODS[-1]})')
+print(f'  Facilities       : {len(facilities)}')
+print(f'  Baseline periods : {len(BASELINE_PERIODS)}  ({BASELINE_PERIODS[0]} – {BASELINE_PERIODS[-1]})')
+print(f'  Active periods   : {len(ACTIVE_PERIODS)}  ({ACTIVE_PERIODS[0]} – {ACTIVE_PERIODS[-1]})')
+print(f'  Total periods    : {len(PERIODS)}')
 print('=' * 60)
 
-log = {'periods': PERIODS, 'facilities': {}, 'dq_issues': [], 'errors': []}
+log = {
+    'baseline_periods': BASELINE_PERIODS,
+    'active_periods':   ACTIVE_PERIODS,
+    'facilities': {}, 'dq_issues': [], 'errors': [],
+}
 total_ok = 0
 
 for fac_name, fac in facilities.items():
@@ -143,7 +172,7 @@ for fac_name, fac in facilities.items():
             log['facilities'][fac_name]['periods'][period] = 'missing'
             continue
 
-        values = baseline(ftype)
+        values = baseline(ftype, fac_name, period)
         issue_label = None
 
         # Issue 2: BCG spike in Limalimo Health Post, Apr 2026
@@ -186,14 +215,14 @@ log['dq_issues'] = [
         'description': 'No data submitted for Apr 2026',
     },
     {
-        'type':        'outlier',
-        'facility':    OUTLIER_FAC,
-        'uid':         facilities[OUTLIER_FAC]['uid'],
-        'period':      '202604',
+        'type':         'outlier',
+        'facility':     OUTLIER_FAC,
+        'uid':          facilities[OUTLIER_FAC]['uid'],
+        'period':       '202604',
         'data_element': 'BCG doses administered (<1yr)',
         'value':        350,
         'normal_range': '30–45',
-        'description': 'BCG <1yr = 350 vs. normal 30–45 for a health post (~10x)',
+        'description':  'BCG <1yr = 350 vs. normal 30–45 for a health post (~10x)',
     },
     {
         'type':        'dtp1_dtp3_inconsistency',
@@ -202,7 +231,7 @@ log['dq_issues'] = [
         'period':      '202604',
         'penta1_u1':   45,
         'penta3_u1':   80,
-        'description': 'Penta3 <1yr (80) > Penta1 <1yr (45) — implausible, 3rd dose > 1st dose',
+        'description': 'Penta3 <1yr (80) > Penta1 <1yr (45) — 3rd dose exceeds 1st dose',
     },
 ]
 

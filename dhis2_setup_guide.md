@@ -296,7 +296,10 @@ Access control is enforced at data submission: `eth_facility_01` can POST to its
 
 Script: [inject_data.py](inject_data.py)
 
-Injects 6 months of realistic baseline data for all 12 facilities (Nov 2025 – Apr 2026) into the EPI - Routine vaccine delivery dataset.
+Injects 28 months of synthetic EPI data for all 12 facilities into the EPI - Routine vaccine delivery dataset:
+
+- **Baseline (Jan 2024 – Oct 2025):** 22 months of clean data. Provides the historical distribution required for meaningful Z-score outlier detection.
+- **Active (Nov 2025 – Apr 2026):** 6 months with three seeded DQ issues in the final period.
 
 ```bash
 python3 inject_data.py
@@ -313,6 +316,10 @@ python3 inject_data.py
 | MR 1 (measles-rubella) | `kGrnHR9zV2G` |
 
 Disaggregation: `<1 year` (`JKuWbG5bWAu`) and `1+ year` (`UIQxmxgioxH`).
+
+### Seeding strategy
+
+Each `(facility, period)` cell uses an independent deterministic seed derived from `hashlib.md5(facility_name:period)`. This means adding or reordering periods in a future run never changes values for other cells.
 
 ### Volume tiers (BCG <1yr/month baseline)
 
