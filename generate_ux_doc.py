@@ -138,8 +138,8 @@ sp()
 h2('3.1  Outlier — initial notification (6 options)')
 body('Sent when a data value is flagged by outlier detection. Options 2 and 4 require a follow-up reply.')
 mono(
-    '[DQ-AX42] Limalimo HP, May 2026\n'
-    'BCG under-1: 350 (normal ~35, flagged)\n'
+    '[DQ-AX42] Addi Arekay HC, Jun 2026\n'
+    'BCG under-1: 970 (normal ~97, flagged)\n'
     'Reply with option number:\n'
     '1. Replace with 6-month avg\n'
     '2. Keep as-is (explain)\n'
@@ -168,13 +168,13 @@ sp()
 h2('3.4  DTP1/DTP3 inconsistency — initial notification (5 options)')
 body('Sent when Penta3 > Penta1. Relative difference is shown so the worker can immediately see the scale of the gap. Options 1, 4, and 5 require a follow-up reply.')
 mono(
-    '[DQ-BK19] Adi Goshu HP, May 2026\n'
-    'Penta1 under-1: 45 | Penta3 under-1: 80\n'
-    'Penta3 exceeds Penta1 by 78%.\n'
+    '[DQ-BK19] Addi Arekay HC, Jun 2026\n'
+    'Penta1 under-1: 60 | Penta3 under-1: 90\n'
+    'Penta3 exceeds Penta1 by 50%.\n'
     'Reply with option number:\n'
     '1. Keep as-is (explain)\n'
-    '2. Set both to Penta1 value (45)\n'
-    '3. Set both to Penta3 value (80)\n'
+    '2. Set both to Penta1 value (60)\n'
+    '3. Set both to Penta3 value (90)\n'
     '4. Replace with specific values\n'
     '5. Other (explain)'
 )
@@ -198,8 +198,8 @@ sp()
 h2('3.7  Missing report — initial notification (SUBMIT + 4 options)')
 body('Recovery before imputation: the SUBMIT option is presented first so the worker can locate and submit the missing report. Cleaning options are a fallback only if recovery fails. This is explicit in the AHEAD methodology: "the first step is always recovery, not imputation."')
 mono(
-    '[DQ-MN33] Bichena HP\n'
-    'No EPI report received for May 2026.\n'
+    '[DQ-MN33] Addi Arekay HC\n'
+    'No completed EPI report for May 2026.\n'
     'Can you submit the report? Reply SUBMIT.\n'
     'Or if unavailable, select:\n'
     '1. Replace with 6-month avg\n'
@@ -229,15 +229,15 @@ h2('3.10  Resolution confirmation')
 body('Sent after any option is applied. No YES/NO step — the numbered reply is the decision.')
 mono(
     '[DQ-AX42] Done.\n'
-    'BCG under-1 at Limalimo HP updated to\n'
-    '6-month avg (36). Decision logged. Issue closed.'
+    'BCG under-1 at Addi Arekay HC updated to\n'
+    '6-month avg (96). Decision logged. Issue closed.'
 )
 sp()
 
 h2('3.11  Retry (24h no reply — up to 3 times)')
 mono(
     '[DQ-AX42] Reminder (2 of 3):\n'
-    'Limalimo HP, May 2026 — BCG under-1 = 350\n'
+    'Addi Arekay HC, Jun 2026 — BCG under-1 = 970\n'
     'Reply 1-6 to resolve. Escalates if no reply.'
 )
 sp()
@@ -246,9 +246,9 @@ h2('3.12  Woreda escalation summary')
 body('Sent to the woreda HMIS officer after 72h of no facility-level resolution. One SMS per woreda covers all open issues in that woreda.')
 mono(
     '[DQ-WOREDA] Addi Arekay Woreda\n'
-    '2 unresolved issues, May 2026:\n'
-    'DQ-AX42 Limalimo HP: BCG outlier (3 days)\n'
-    'DQ-BK19 Adi Goshu HP: Penta3 > Penta1 (3 days)\n'
+    '2 unresolved issues, Jun 2026:\n'
+    'DQ-AX42 Addi Arekay HC: BCG outlier (3 days)\n'
+    'DQ-BK19 Addi Arekay HC: Penta3 > Penta1 (3 days)\n'
     'Details: <issue log URL>'
 )
 sp()
@@ -256,11 +256,11 @@ sp()
 h2('3.13  Monthly national digest')
 body('Sent to the national TWG on the first of each month covering all prior-month unresolved issues.')
 mono(
-    '[DQ-MONTHLY] May 2026 Summary\n'
+    '[DQ-MONTHLY] Jun 2026 Summary\n'
     'Ethiopia: 2 issues still open\n'
     'Amhara / N. Gondar:\n'
-    '  - 1 outlier (Limalimo HP, 25 days)\n'
-    '  - 1 DTP inconsistency (Adi Goshu HP)\n'
+    '  - 1 outlier (Addi Arekay HC, 25 days)\n'
+    '  - 1 DTP inconsistency (Addi Arekay HC)\n'
     'View all: <issue log URL>'
 )
 sp()
@@ -273,12 +273,12 @@ sp()
 h2('4.1  Outlier — option with no follow-up (option 1: 6-month average)')
 body('Agent calculates the 6-month average and applies it automatically. Two turns.')
 mono(
-    'Agent     [DQ-AX42] Limalimo HP, May 2026. BCG under-1: 350 (normal ~35).\n'
+    'Agent     [DQ-AX42] Addi Arekay HC, Jun 2026. BCG under-1: 970 (normal ~97).\n'
     '          Reply 1-6: 1=6mo-avg 2=keep(explain) 3=zero 4=specific# 5=HF-only 6=outreach-only\n'
     '\n'
     'Facility  1\n'
     '\n'
-    'Agent     [DQ-AX42] Done. BCG under-1 replaced with 6-month avg (36).\n'
+    'Agent     [DQ-AX42] Done. BCG under-1 replaced with 6-month avg (96).\n'
     '          Decision logged. Issue closed.'
 )
 sp()
@@ -286,7 +286,7 @@ sp()
 h2('4.2  Outlier — option with follow-up (option 4: specific number)')
 body('Three turns: notification, number selection, value entry.')
 mono(
-    'Agent     [DQ-AX42] Limalimo HP, May 2026. BCG under-1: 350 (normal ~35).\n'
+    'Agent     [DQ-AX42] Addi Arekay HC, Jun 2026. BCG under-1: 970 (normal ~97).\n'
     '          Reply 1-6: 1=6mo-avg 2=keep(explain) 3=zero 4=specific# 5=HF-only 6=outreach-only\n'
     '\n'
     'Facility  4\n'
@@ -296,7 +296,7 @@ mono(
     '\n'
     'Facility  35\n'
     '\n'
-    'Agent     [DQ-AX42] Done. BCG under-1 updated to 35 at Limalimo HP.\n'
+    'Agent     [DQ-AX42] Done. BCG under-1 updated to 97 at Addi Arekay HC.\n'
     '          Decision logged. Issue closed.'
 )
 sp()
@@ -304,7 +304,7 @@ sp()
 h2('4.3  Outlier — keep as-is with explanation (option 2)')
 body('Three turns: notification, option selection, explanation text.')
 mono(
-    'Agent     [DQ-AX42] Limalimo HP, May 2026. BCG under-1: 350 (normal ~35).\n'
+    'Agent     [DQ-AX42] Addi Arekay HC, Jun 2026. BCG under-1: 970 (normal ~97).\n'
     '          Reply 1-6: 1=6mo-avg 2=keep(explain) 3=zero 4=specific# 5=HF-only 6=outreach-only\n'
     '\n'
     'Facility  2\n'
@@ -312,10 +312,10 @@ mono(
     'Agent     [DQ-AX42] Option 2: keep as-is.\n'
     '          Please reply with a brief explanation.\n'
     '\n'
-    'Facility  PIRI campaign in North Gondar, May 2026\n'
+    'Facility  PIRI campaign in North Gondar, Jun 2026\n'
     '\n'
     'Agent     [DQ-AX42] Noted. BCG under-1 kept as 350.\n'
-    '          Comment logged: "PIRI campaign in North Gondar, May 2026".\n'
+    '          Comment logged: "PIRI campaign in North Gondar, Jun 2026".\n'
     '          Issue closed.'
 )
 sp()
@@ -323,13 +323,13 @@ sp()
 h2('4.4  DTP inconsistency — simple option (option 2: use Penta1 for both)')
 body('Agent replaces both values immediately. Two turns.')
 mono(
-    'Agent     [DQ-BK19] Adi Goshu HP, May 2026.\n'
-    '          Penta1: 45 | Penta3: 80 (Penta3 exceeds Penta1 by 78%).\n'
+    'Agent     [DQ-BK19] Addi Arekay HC, Jun 2026.\n'
+    '          Penta1: 60 | Penta3: 90 (Penta3 exceeds Penta1 by 50%).\n'
     '          Reply 1-5: 1=keep(explain) 2=use-Penta1(45) 3=use-Penta3(80) 4=specific 5=other\n'
     '\n'
     'Facility  2\n'
     '\n'
-    'Agent     [DQ-BK19] Done. Penta1 and Penta3 under-1 both set to 45.\n'
+    'Agent     [DQ-BK19] Done. Penta1 and Penta3 under-1 both set to 60.\n'
     '          Decision logged. Issue closed.'
 )
 sp()
@@ -337,8 +337,8 @@ sp()
 h2('4.5  DTP inconsistency — specific values (option 4)')
 body('Three turns: notification, option selection, two values separated by comma.')
 mono(
-    'Agent     [DQ-BK19] Adi Goshu HP, May 2026.\n'
-    '          Penta1: 45 | Penta3: 80 (Penta3 exceeds Penta1 by 78%).\n'
+    'Agent     [DQ-BK19] Addi Arekay HC, Jun 2026.\n'
+    '          Penta1: 60 | Penta3: 90 (Penta3 exceeds Penta1 by 50%).\n'
     '          Reply 1-5: 1=keep(explain) 2=use-Penta1(45) 3=use-Penta3(80) 4=specific 5=other\n'
     '\n'
     'Facility  4\n'
@@ -346,7 +346,7 @@ mono(
     'Agent     [DQ-BK19] Option 4: replace with specific values.\n'
     '          Reply with correct Penta1 and Penta3 under-1 separated by comma.\n'
     '\n'
-    'Facility  45,38\n'
+    'Facility  88,72\n'
     '\n'
     'Agent     [DQ-BK19] Done. Penta1 under-1 = 45, Penta3 under-1 = 38.\n'
     '          Decision logged. Issue closed.'
@@ -356,7 +356,7 @@ sp()
 h2('4.6  Missing report — recovery succeeds (SUBMIT)')
 body('Worker submits the missing report in DHIS2. Agent re-checks within the hour and closes automatically.')
 mono(
-    'Agent     [DQ-MN33] Bichena HP. No EPI report for May 2026.\n'
+    'Agent     [DQ-MN33] Addi Arekay HC. No completed EPI report for May 2026.\n'
     '          Reply SUBMIT if submitting now, or 1-4 for cleaning.\n'
     '\n'
     'Facility  SUBMIT\n'
@@ -366,19 +366,19 @@ mono(
     '\n'
     '          [1 hour later — agent finds the registration]\n'
     '\n'
-    'Agent     [DQ-MN33] Confirmed. Bichena HP May 2026 report received. Issue closed.'
+    'Agent     [DQ-MN33] Confirmed. Addi Arekay HC May 2026 report received. Issue closed.'
 )
 sp()
 
 h2('4.7  Missing report — cleaning option (option 2: replace with zero)')
 body('Recovery not possible. Worker selects a cleaning option instead.')
 mono(
-    'Agent     [DQ-MN33] Bichena HP. No EPI report for May 2026.\n'
+    'Agent     [DQ-MN33] Addi Arekay HC. No completed EPI report for May 2026.\n'
     '          Reply SUBMIT if submitting now, or 1-4 for cleaning.\n'
     '\n'
     'Facility  2\n'
     '\n'
-    'Agent     [DQ-MN33] Done. May 2026 recorded as zero for all vaccines at Bichena HP.\n'
+    'Agent     [DQ-MN33] Done. May 2026 recorded as zero for all vaccines at Addi Arekay HC.\n'
     '          (Facility closed / no service that month.) Issue closed.'
 )
 sp()
@@ -386,7 +386,7 @@ sp()
 h2('4.8  No reply — retry then escalation')
 mono(
     'Day 0     Agent sends numbered-option notification\n'
-    'Day 1     No reply — Retry 1: "[DQ-AX42] Reminder (1 of 3): Limalimo HP BCG=350. Reply 1-6."\n'
+    'Day 1     No reply — Retry 1: "[DQ-AX42] Reminder (1 of 3): Addi Arekay HC BCG=970. Reply 1-6."\n'
     'Day 2     No reply — Retry 2: "[DQ-AX42] Reminder (2 of 3): ... Issue escalates if no reply."\n'
     'Day 3     No reply — Retry 3 + escalate: woreda HMIS officer receives summary SMS\n'
     'Day 10    No woreda resolution — escalate to zone\n'
@@ -435,15 +435,15 @@ mono(
     '--------------------------------------------------------------------------------\n'
     'Ref     Facility          Issue              Period  Status    Opened      Updated\n'
     '--------------------------------------------------------------------------------\n'
-    'DQ-AX42 Limalimo HP       Outlier: BCG 350   202604  OPEN      2026-05-01  05-01\n'
-    'DQ-BK19 Adi Goshu HP      DTP3 > DTP1        202604  OPEN      2026-05-01  05-01\n'
-    'DQ-MN33 Bichena HP        Missing report     202604  ESCALATED 2026-05-01  05-04\n'
-    '[> expand] Full SMS thread for DQ-MN33:\n'
-    '  2026-05-01 08:06  OUT  [DQ-MN33] Bichena HP. No EPI report...\n'
-    '  2026-05-02 08:06  OUT  [DQ-MN33] Reminder (1 of 3)...\n'
-    '  2026-05-03 08:06  OUT  [DQ-MN33] Reminder (2 of 3)...\n'
-    '  2026-05-04 08:06  OUT  [DQ-MN33] Reminder (3 of 3)...\n'
-    '  2026-05-04 08:07  OUT  Woreda summary sent to Bekele Haile\n'
+    'DQ-AX42 Addi Arekay HC    Outlier: BCG 970   202606  RESOLVED  2026-06-01  06-01\n'
+    'DQ-BK19 Addi Arekay HC    DTP3 > DTP1        202606  RESOLVED  2026-06-01  06-01\n'
+    'DQ-MN33 Addi Arekay HC    Missing report     202605  RESOLVED  2026-06-01  06-01\n'
+    '[> expand] Full SMS thread for DQ-AX42:\n'
+    '  2026-06-01 10:02  OUT  [DQ-AX42] Addi Arekay HC, Jun 2026. BCG under-1: 970...\n'
+    '  2026-06-01 10:04  IN   4\n'
+    '  2026-06-01 10:04  OUT  [DQ-AX42] Option 4: replace with specific number...\n'
+    '  2026-06-01 10:05  IN   97\n'
+    '  2026-06-01 10:05  OUT  [DQ-AX42] Done. BCG under-1 updated to 97. Issue closed.\n'
     '--------------------------------------------------------------------------------'
 )
 sp()
@@ -560,16 +560,16 @@ sp()
 
 # ── 10. Demo Script ───────────────────────────────────────────────────────────
 h1('10. Demo Script')
-body('Three demos, each starting with clean data in DHIS2. The presenter enters wrong values live — typing them directly into the DHIS2 data entry form — then shows the agent detecting the issue and driving the SMS conversation in real-time. This is more compelling than pre-seeded data because the audience sees the detection happen from scratch. Total runtime: ~15 minutes.')
+body('Three live data-entry demos, all using the same facility and user account: eth_facility_01 (Almaz Tadesse), Addi Arekay Health Center. You type wrong values directly into the DHIS2 form as the facility worker would, the agent detects the issue within ~30 seconds, and the numbered-option SMS conversation plays out on the presenter\'s phone. Total runtime: ~15 minutes.')
 sp()
 
 tbl(
-    ['Demo', 'Issue type', 'Facility', 'Period', 'Duration', 'What it proves'],
+    ['Demo', 'Issue type', 'Facility', 'User', 'Period', 'Duration', 'What it proves'],
     [
-        ['A', 'Statistical outlier',     'Limalimo HP',  'May 2026', '~6 min', 'Type wrong BCG value → detection → numbered SMS options → correction applied in DHIS2'],
-        ['B', 'DTP1/DTP3 inconsistency', 'Adi Goshu HP', 'May 2026', '~5 min', 'Type Penta3 > Penta1 → validation rule → numbered options → correction'],
-        ['C', 'Missing report',          'Bichena HP',   'May 2026', '~4 min', 'Submit no data → daily check → SUBMIT option → recovery flow'],
-        ['D', 'Issue log web app',       '(all)',         '(all)',    '~3 min', 'Supervisor view: all issues, numbered-option threads, statuses'],
+        ['A', 'Statistical outlier',     'Addi Arekay HC', 'eth_facility_01', 'Jun 2026', '~6 min', 'Type BCG=970 (meant 97) → outlier detected → option 4 → corrected to 97 in DHIS2'],
+        ['B', 'DTP1/DTP3 inconsistency', 'Addi Arekay HC', 'eth_facility_01', 'Jun 2026', '~5 min', 'Edit Penta3=90 > Penta1=60 → validation rule → option 2 → both corrected'],
+        ['C', 'Missing report',          'Addi Arekay HC', 'eth_facility_01', 'May 2026', '~4 min', 'No data for prior month → agent flags → SUBMIT → recovery flow'],
+        ['D', 'Issue log web app',       '(all)',           '—',               '(all)',    '~3 min', 'Supervisor view: all issues, numbered-option threads, statuses'],
     ]
 )
 sp()
@@ -577,47 +577,52 @@ sp()
 h2('Prerequisites — confirm before presenting')
 bullet('DHIS2 running: http://localhost:8080 responds with login page')
 bullet('Agent running: http://localhost:5001/api/status returns JSON with uptime')
-bullet('inject_data.py has been run — 28 months of clean baseline data loaded (Jan 2024 – Apr 2026). All data is clean; no pre-seeded issues.')
-bullet('contacts table in agent SQLite seeded with presenter\'s phone for all demo facilities')
+bullet('inject_data.py has been run — 28 months of clean baseline data loaded (Jan 2024 – Apr 2026). No pre-seeded issues. Addi Arekay Health Center has 22 months of clean baseline values.')
+bullet('contacts table in agent SQLite seeded with presenter\'s phone for Addi Arekay Health Center')
 bullet('Presenter\'s phone visible to audience (screen mirror or camera pointing at phone)')
 bullet('Twilio account active and TWILIO_FROM_NUMBER configured in .env')
 sp()
-body('Demo period: May 2026 (202605). This period has no data in DHIS2 yet — you will enter values live. The 22-month baseline (Jan 2024 – Oct 2025) gives the outlier detection a robust mean and standard deviation to compare against.')
+
+body('All demos use a single login: eth_facility_01 / [DHIS2_USER_PASSWORD from .env]. This account belongs to Almaz Tadesse and is scoped to Addi Arekay Health Center only — exactly the facility-worker persona being demonstrated.')
 sp()
-body('Detection is automatic within ~30 seconds via lastUpdated polling. To skip the wait during the demo: POST http://localhost:5001/api/scan — fires all checks immediately.')
+body('Demos A and B use June 2026 (202606) — a period with no data yet. Demo C uses May 2026 (202505) to show the missing report scenario for a prior month that was never formally completed.')
+sp()
+body('Addi Arekay Health Center is a Health Center (tier 2). BCG under-1 baseline: ~97/month (range 80–115 across 22 months). Penta1 under-1: ~87. Penta3 under-1: ~71. Detection is within ~30 seconds via lastUpdated polling, or trigger instantly with: POST http://localhost:5001/api/scan')
 sp()
 
-h2('Demo A — Statistical Outlier: Limalimo Health Post (~6 min)')
-body('What this shows: You type a grossly incorrect BCG value into DHIS2, submit it, and the agent detects it against 22 months of baseline history and sends a numbered-option SMS. The full loop — entry, detection, SMS, option selection, correction in DHIS2 — happens in real time in front of the audience.')
+h2('Demo A — Statistical Outlier: Addi Arekay Health Center, Jun 2026 (~6 min)')
+body('What this shows: Almaz enters her June 2026 BCG count with an extra zero — a realistic typo. The agent detects it against 22 months of baseline history and sends the numbered-option SMS. The full loop plays out in front of the audience in real time.')
 sp()
 
-body('Step 1 — Navigate to the data entry form')
-bullet('Log in at http://localhost:8080 as admin / [DHIS2_ADMIN_PASS from .env]')
+body('Step 1 — Log in and open the data entry form')
+bullet('Log in at http://localhost:8080 as eth_facility_01 / [DHIS2_USER_PASSWORD from .env]')
 bullet('Open Data Entry (grid icon in top menu)')
-bullet('Navigate: Ethiopia → Amhara → North Gondar → Janamora Woreda → Limalimo Health Post')
-bullet('Select dataset: EPI - Routine vaccine delivery | Period: May 2026')
-bullet('The form is blank — no data has been submitted for May 2026 yet')
-bullet('Narrate: "This is what a facility worker sees when they open their monthly reporting form."')
+bullet('Navigate in the left org unit tree: Ethiopia → Amhara → North Gondar → Addi Arekay Woreda → Addi Arekay Health Center')
+bullet('Select dataset: EPI - Routine vaccine delivery | Period: June 2026')
+bullet('The form is blank — no data for June 2026 yet')
+bullet('Narrate: "Almaz is entering the monthly EPI report for June. She works at the facility and submits this form each month."')
 sp()
 
-body('Step 2 — Enter data with a deliberate error')
-bullet('Fill in realistic values for all fields EXCEPT BCG under-1:')
-bullet('BCG >= 1 year: 3  |  Penta1 under-1: 31  |  Penta1 >= 1 year: 2  |  Penta3 under-1: 26  |  MR1 under-1: 30', lv=1)
-bullet('In the BCG under-1 field, type: 350')
-bullet('Narrate: "The worker accidentally types 350 instead of 35 — a common transposition error."')
+body('Step 2 — Enter data with a BCG outlier (deliberate typo)')
+bullet('Enter the following values in the form:')
+bullet('BCG under-1: 970  |  BCG >= 1 year: 5', lv=1)
+bullet('Penta1 under-1: 88  |  Penta1 >= 1 year: 4', lv=1)
+bullet('Penta3 under-1: 72  |  Penta3 >= 1 year: 3', lv=1)
+bullet('MR1 under-1: 83  |  MR1 >= 1 year: 3', lv=1)
+bullet('Narrate: "BCG under-1 should be 97 this month — but Almaz accidentally typed 970. An extra zero. This happens."')
 bullet('Click Save')
 sp()
 
 body('Step 3 — Agent detects the outlier (~30 seconds)')
-bullet('Wait ~30 seconds for the lastUpdated poll, OR: curl -s -X POST http://localhost:5001/api/scan')
-bullet('Agent queries outlier detection: BCG = 350 vs 22-month mean ~35 (z-score ~100)')
-bullet('New issue created. Navigate to http://localhost:5001/issues — issue appears as OPEN')
+bullet('Wait ~30 seconds, OR trigger immediately: curl -s -X POST http://localhost:5001/api/scan')
+bullet('Agent queries outlier detection: BCG = 970 vs 22-month mean ~97, z-score ~87 — clearly flagged')
+bullet('New issue created. Open http://localhost:5001/issues — issue appears as OPEN')
 sp()
 
-body('Step 4 — Receive the SMS on presenter\'s phone')
+body('Step 4 — SMS arrives on presenter\'s phone')
 mono(
-    '[DQ-XXXX] Limalimo HP, May 2026\n'
-    'BCG under-1: 350 (normal ~35, flagged)\n'
+    '[DQ-XXXX] Addi Arekay HC, Jun 2026\n'
+    'BCG under-1: 970 (normal ~97, flagged)\n'
     'Reply with option number:\n'
     '1. Replace with 6-month avg\n'
     '2. Keep as-is (explain)\n'
@@ -626,116 +631,117 @@ mono(
     '5. Use facility doses only\n'
     '6. Use outreach doses only'
 )
-bullet('Point out: numbered options match the AHEAD Excel dropdown exactly — the agent replicates the same decision schema George\'s team uses today')
+bullet('Point out: numbered options mirror the AHEAD Excel dropdown exactly — same decision schema George\'s team uses today, now delivered by SMS')
 sp()
 
 body('Step 5 — Select option 4 (replace with specific number)')
 bullet('Reply to the SMS: 4')
-bullet('Agent replies:')
+bullet('Agent sends a follow-up:')
 mono(
     '[DQ-XXXX] Option 4: replace with specific number.\n'
     'Reply with the correct BCG under-1 value.'
 )
-bullet('Reply: 35')
-bullet('Agent applies the correction (POST /api/dataValueSets as agent_service) and sends:')
+bullet('Reply: 97')
+bullet('Agent applies the correction and sends:')
 mono(
-    '[DQ-XXXX] Done. BCG under-1 updated to 35 at Limalimo HP.\n'
+    '[DQ-XXXX] Done. BCG under-1 updated to 97 at Addi Arekay HC.\n'
     'Decision logged. Issue closed.'
 )
 sp()
 
 body('Step 6 — Show the correction in DHIS2')
-bullet('Switch back to the DHIS2 tab and refresh Limalimo HP / May 2026')
-bullet('BCG under-1 now shows 35 (was 350)')
-bullet('Narrate: "The corrected value is now in DHIS2. The DHIS2 audit log will show this was changed by agent_service."')
+bullet('Switch back to DHIS2 and refresh Addi Arekay HC / June 2026')
+bullet('BCG under-1 now shows 97 (was 970)')
+bullet('Narrate: "The correction was written to DHIS2 by the agent. The audit log will show agent_service made this change — fully traceable."')
 sp()
 
-body('Expected final state after Demo A:')
-bullet('DHIS2: Limalimo HP, May 2026, BCG under-1 = 35 (was 350)')
-bullet('Issue log: DQ-XXXX | Outlier | Limalimo HP | RESOLVED | Option 4: specific number (35)')
-bullet('SMS thread: 4 messages — notification, "4", follow-up, "35", resolution')
+body('Expected final state:')
+bullet('DHIS2: Addi Arekay HC, Jun 2026, BCG under-1 = 97 (was 970)')
+bullet('Issue log: DQ-XXXX | Outlier: BCG | Addi Arekay HC | RESOLVED | Option 4: specific number (97)')
+bullet('SMS thread: 4 messages — notification, "4", follow-up question, "97", resolution')
 sp()
 
-h2('Demo B — DTP1/DTP3 Inconsistency: Adi Goshu Health Post (~5 min)')
-body('What this shows: You type Penta3 > Penta1, which violates a built-in DHIS2 EPI validation rule. The agent detects it via /api/validationResults and sends numbered options. The threshold for monthly facility data is Penta3 > Penta1 by >30%.')
+h2('Demo B — DTP1/DTP3 Inconsistency: Addi Arekay Health Center, Jun 2026 (~5 min)')
+body('What this shows: Almaz accidentally swaps her Penta1 and Penta3 figures. The EPI metadata package validation rule fires — Penta3 > Penta1 by 50%, well above the 30% threshold for monthly facility data. Same form, same login.')
 sp()
 
-body('Step 1 — Navigate to the data entry form')
-bullet('Navigate: Ethiopia → Amhara → North Gondar → Addi Arekay Woreda → Adi Goshu Health Post')
-bullet('Dataset: EPI - Routine vaccine delivery | Period: May 2026')
-bullet('Form is blank')
-sp()
-
-body('Step 2 — Enter data with a DTP inconsistency')
-bullet('Fill in all fields with realistic values, but swap Penta1 and Penta3:')
-bullet('BCG under-1: 35  |  BCG >= 1 year: 2  |  Penta1 under-1: 45  |  Penta3 under-1: 80', lv=1)
-bullet('Narrate: "Penta3 under-1 is 80, but Penta1 under-1 is only 45. The 3rd dose of a vaccine series can never exceed the 1st dose — this is a transposition or reporting error. The relative difference here is 78%, well above the 30% threshold for monthly facility data."')
+body('Step 1 — Edit the same June 2026 form')
+bullet('Still logged in as eth_facility_01. Navigate back to Addi Arekay HC / June 2026.')
+bullet('BCG is now 97 (corrected in Demo A). The Penta values currently read: Penta1 under-1: 88, Penta3 under-1: 72.')
+bullet('Update: Penta1 under-1 = 60, Penta3 under-1 = 90')
+bullet('Narrate: "Almaz has swapped the Penta1 and Penta3 figures — maybe copied from the wrong row on her tally sheet."')
 bullet('Click Save')
 sp()
 
-body('Step 3 — Agent detects the violation (~30 seconds)')
+body('Step 2 — Agent detects the DTP violation (~30 seconds)')
 bullet('Wait or POST http://localhost:5001/api/scan')
-bullet('Agent runs POST /api/validation then reads GET /api/validationResults')
-bullet('EPI package\'s built-in rule fires: Penta3 > Penta1')
-bullet('Issue appears in http://localhost:5001/issues')
+bullet('Agent runs the DHIS2 validation check. Built-in EPI rule fires: Penta3 (90) > Penta1 (60)')
+bullet('Relative difference: (90-60)/60 = 50% — above the 30% threshold for monthly facility data')
+bullet('New issue created and visible in http://localhost:5001/issues')
 sp()
 
-body('Step 4 — Receive the SMS')
+body('Step 3 — SMS arrives')
 mono(
-    '[DQ-XXXX] Adi Goshu HP, May 2026\n'
-    'Penta1 under-1: 45 | Penta3 under-1: 80\n'
-    'Penta3 exceeds Penta1 by 78%.\n'
+    '[DQ-XXXX] Addi Arekay HC, Jun 2026\n'
+    'Penta1 under-1: 60 | Penta3 under-1: 90\n'
+    'Penta3 exceeds Penta1 by 50%.\n'
     'Reply with option number:\n'
     '1. Keep as-is (explain)\n'
-    '2. Set both to Penta1 value (45)\n'
-    '3. Set both to Penta3 value (80)\n'
+    '2. Set both to Penta1 value (60)\n'
+    '3. Set both to Penta3 value (90)\n'
     '4. Replace with specific values\n'
     '5. Other (explain)'
 )
+bullet('Narrate: "The 3rd dose cannot exceed the 1st dose — dropout only goes one direction. The agent surfaces the gap (50%) and gives Almaz the same options she\'d see in the Excel sheet."')
 sp()
 
-body('Step 5 — Select option 2 (use Penta1 for both)')
-bullet('Reply: 2')
-bullet('Agent applies: sets Penta3 under-1 = 45, matching Penta1')
+body('Step 4 — Select option 4 (replace with specific values) to restore the correct numbers')
+bullet('Narrate: "Almaz knows the real numbers — Penta1 is 88 and Penta3 is 72. She selects option 4 to enter both."')
+bullet('Reply: 4')
 bullet('Agent sends:')
 mono(
-    '[DQ-XXXX] Done. Penta1 and Penta3 under-1 both set to 45.\n'
+    '[DQ-XXXX] Option 4: replace with specific values.\n'
+    'Reply with correct Penta1 and Penta3 under-1\n'
+    'separated by comma. (e.g., 45,42)'
+)
+bullet('Reply: 88,72')
+bullet('Agent applies both and sends:')
+mono(
+    '[DQ-XXXX] Done. Penta1 under-1 = 88, Penta3 under-1 = 72.\n'
     'Decision logged. Issue closed.'
 )
 sp()
 
-body('Step 6 — Show in DHIS2 and issue log')
-bullet('Refresh Adi Goshu HP / May 2026: Penta3 under-1 = 45 (was 80)')
-bullet('Issue log: DQ-XXXX | DTP inconsistency | Adi Goshu HP | RESOLVED | Option 2')
+body('Step 5 — Show in DHIS2 and issue log')
+bullet('Refresh Addi Arekay HC / June 2026: Penta1 under-1 = 88, Penta3 under-1 = 72')
+bullet('Issue log: DQ-XXXX | DTP3 > DTP1 | Addi Arekay HC | RESOLVED | Option 4: specific values (88, 72)')
 sp()
 
-body('Expected final state after Demo B:')
-bullet('DHIS2: Adi Goshu HP, May 2026, Penta3 under-1 = 45 (was 80). Penta1 = Penta3 = 45.')
-bullet('Issue log: DQ-XXXX | DTP3 > DTP1 | Adi Goshu HP | RESOLVED | Option 2: use Penta1')
-bullet('SMS thread: 3 messages — notification, "2", resolution')
+body('Expected final state:')
+bullet('DHIS2: Addi Arekay HC, Jun 2026, Penta1=88, Penta3=72 — both corrected')
+bullet('SMS thread: 4 messages — notification, "4", follow-up question, "88,72", resolution')
 sp()
 
-h2('Demo C — Missing Report: Bichena Health Post (~4 min)')
-body('What this shows: The missing report check detects that Bichena HP submitted nothing for May 2026. The first response option is SUBMIT — recovery before imputation, exactly matching the AHEAD methodology. Two paths are available during the demo.')
+h2('Demo C — Missing Report: Addi Arekay Health Center, May 2026 (~4 min)')
+body('What this shows: The agent proactively flags a prior month (May 2026) where no complete dataset registration exists for Addi Arekay HC. This is a different scenario from Demos A and B — rather than catching errors at entry time, it catches a facility that never submitted at all. The AHEAD methodology is explicit: recovery first, imputation only as a fallback.')
 sp()
 
-body('Step 1 — Show the blank form')
-bullet('Navigate: Ethiopia → Amhara → North Gondar → Dabat Woreda → Bichena Health Post')
-bullet('Dataset: EPI - Routine vaccine delivery | Period: May 2026')
-bullet('Form is blank. Do NOT enter any data and do NOT save.')
-bullet('Narrate: "This facility has not submitted its May 2026 report. In the current manual process, this would only be discovered at the end of the month during the HQ extraction. The agent will flag it within hours of the expected submission deadline."')
+body('Step 1 — Show that May 2026 has no submission')
+bullet('Navigate to Addi Arekay HC | Dataset: EPI - Routine vaccine delivery | Period: May 2026')
+bullet('The form has data values (loaded by inject_data.py) but no complete registration — the "Complete" button was never clicked')
+bullet('Narrate: "In the real workflow, the agent checks which facilities have submitted and formally completed their report. Addi Arekay HC has data values for May 2026 but has never been formally completed — the HMIS officer never clicked the Complete button. The agent flags this."')
 sp()
 
 body('Step 2 — Trigger the missing report check')
 bullet('POST http://localhost:5001/api/scan?check=missing_reports')
-bullet('Agent queries completeDataSetRegistrations; Bichena HP absent for 202605')
-bullet('Issue created: type=missing_report, facility=Bichena HP, period=May 2026')
+bullet('Agent queries completeDataSetRegistrations for May 2026; Addi Arekay HC has no registration')
+bullet('Issue created: type=missing_report, facility=Addi Arekay HC, period=May 2026')
 sp()
 
-body('Step 3 — Receive the SMS')
+body('Step 3 — SMS arrives on presenter\'s phone')
 mono(
-    '[DQ-XXXX] Bichena HP\n'
-    'No EPI report received for May 2026.\n'
+    '[DQ-XXXX] Addi Arekay HC\n'
+    'No completed EPI report for May 2026.\n'
     'Can you submit the report? Reply SUBMIT.\n'
     'Or if unavailable, select:\n'
     '1. Replace with 6-month avg\n'
@@ -743,58 +749,62 @@ mono(
     '3. Replace with specific values\n'
     '4. Remove from analysis'
 )
-bullet('Point out: SUBMIT is the first option — recovery before imputation, per AHEAD methodology')
+bullet('Point out: SUBMIT appears first — the AHEAD methodology says recovery beats imputation; only choose a cleaning option if the report genuinely cannot be found')
 sp()
 
-body('Step 4a — Path: SUBMIT (primary demo path)')
-bullet('Narrate: "The facility worker replies SUBMIT, meaning they have the data and will enter it now."')
-bullet('Reply to the SMS: SUBMIT')
-bullet('Agent replies: "[DQ-XXXX] Thanks — checking DHIS2 within the hour. Issue will close automatically once your submission appears."')
-bullet('Now navigate back to DHIS2, enter realistic values for Bichena HP / May 2026, and click Save')
+body('Step 4 — Reply SUBMIT')
+bullet('Reply: SUBMIT')
+bullet('Agent sends:')
+mono(
+    '[DQ-XXXX] Thanks — checking DHIS2 within the hour.\n'
+    'Issue will close automatically once your\n'
+    'report is marked complete.'
+)
+bullet('Now in DHIS2: navigate to Addi Arekay HC / May 2026, click the Complete button to mark it as formally submitted')
 bullet('Trigger a re-check: POST http://localhost:5001/api/scan?check=missing_reports')
-bullet('Agent finds the registration and sends: "[DQ-XXXX] Confirmed. Bichena HP May 2026 report received. Issue closed."')
+bullet('Agent finds the registration and sends:')
+mono(
+    '[DQ-XXXX] Confirmed. Addi Arekay HC May 2026\n'
+    'report received. Issue closed.'
+)
 sp()
 
-body('Step 4b — Path: cleaning option (if showing imputation fallback)')
-bullet('If the report cannot be recovered, reply: 2 (replace with zero)')
-bullet('Agent applies zeros for all vaccines and sends a closure confirmation')
-sp()
-
-body('Expected final state after Demo C:')
-bullet('DHIS2: Bichena HP, May 2026 — filled with submitted data (SUBMIT path) or zero (option 2 path)')
-bullet('Issue log: DQ-XXXX | Missing report | Bichena HP | RESOLVED')
-bullet('SMS thread: 3-4 messages')
+body('Expected final state:')
+bullet('DHIS2: Addi Arekay HC, May 2026 — marked as complete (Complete button clicked)')
+bullet('Issue log: DQ-XXXX | Missing report | Addi Arekay HC | RESOLVED')
+bullet('SMS thread: 3 messages — notification, "SUBMIT", acknowledgement, auto-close confirmation')
 sp()
 
 h2('Demo D — Issue Log Web App (~3 min)')
-body('What this shows: The standalone supervisor view that George\'s team would use to monitor all DQ activity across Ethiopia without logging into DHIS2.')
+body('What this shows: The standalone supervisor view. George\'s team uses this to monitor all DQ activity across Ethiopia — every issue the agent detected, every SMS sent, every decision made — without ever logging into DHIS2.')
 sp()
 
 body('Step 1 — Open the issue log')
-bullet('Navigate to http://localhost:5001/issues')
-bullet('All three demo issues visible: Demo A (RESOLVED), Demo B (RESOLVED), Demo C (RESOLVED or OPEN)')
+bullet('Navigate to http://localhost:5001/issues in the browser')
+bullet('Three issues visible: Demo A (RESOLVED, BCG outlier), Demo B (RESOLVED, DTP inconsistency), Demo C (RESOLVED, missing report)')
 sp()
 
-body('Step 2 — Show filtering and search')
-bullet('Filter by Status = "Open" — only unresolved issues remain visible')
-bullet('Filter by Period = "May 2026" — scopes to this month\'s issues')
-bullet('Narrate: "In production, George\'s team could filter by any woreda, region, or time period across Ethiopia."')
+body('Step 2 — Show filtering')
+bullet('Filter by Status = "Open" — shows only unresolved issues (none after all three demos resolved)')
+bullet('Filter by Facility = "Addi Arekay HC" — shows all three issues for this facility')
+bullet('Narrate: "In production with hundreds of facilities across Ethiopia, George\'s team could filter by any woreda, region, or time period."')
 sp()
 
-body('Step 3 — Expand a conversation thread (Demo A)')
-bullet('Click expand on DQ-XXXX (Limalimo HP, BCG outlier)')
-bullet('Show the full thread: timestamps, IN/OUT direction, each message body with the numbered option visible')
-bullet('Narrate: "Every decision is logged. This is the audit trail — it captures the same information the Excel dropdown captured, but in real-time and with a full conversation history."')
+body('Step 3 — Expand Demo A conversation thread (BCG outlier)')
+bullet('Click expand on the BCG outlier issue (DQ-XXXX)')
+bullet('Show the full SMS thread: timestamps, IN/OUT, each turn')
+bullet('The thread shows: initial notification → "4" (option selected) → follow-up question → "97" (value given) → resolution')
+bullet('Narrate: "This is the audit trail. It captures the same information the Excel dropdown captured — which option was chosen, what the corrected value is — but in real time, with the full conversation history."')
 sp()
 
-body('Step 4 — Highlight the decision schema')
-bullet('Point out that the "Option 4 — specific number (35)" entry in the issue record is the equivalent of the Excel dropdown selection')
-bullet('Narrate: "This is what George\'s team needs for the cleaned dataset: the original flag, the decision made, and who made it. The agent captures this automatically."')
+body('Step 4 — Show the decision schema link')
+bullet('Point out: the issue record shows "Option 4: specific number (97)" — the equivalent of an Excel dropdown selection')
+bullet('Narrate: "Every decision maps directly to the AHEAD response schema that George\'s team already uses. The cleaned dataset output would come from these logged decisions, exactly like it does today from the Excel files."')
 sp()
 
-body('Expected final state after Demo D:')
-bullet('Audience has seen the full loop: data entry → detection → structured SMS dialogue → correction → audit log')
-bullet('Issue log is open, showing all issues with decision records and conversation threads')
+body('Expected final state:')
+bullet('Audience has seen the complete loop: facility entry → real-time detection → numbered SMS options → correction applied → audit log with full thread')
+bullet('Issue log shows 3 resolved issues for Addi Arekay HC across two periods, with decision records')
 sp()
 
 h2('Common demo questions and answers')
