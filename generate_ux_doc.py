@@ -116,11 +116,11 @@ tbl(
     [
         ['Statistical outlier',
          'A submitted value is flagged by DHIS2 outlier detection (Z-score >= 3.0 vs. facility historical baseline)',
-         'Within 5 minutes of form submission',
+         'Within ~30 seconds of form submission',
          'Facility worker'],
         ['DTP1/DTP3 inconsistency',
          'Penta3 doses exceed Penta1 doses for same facility-period (biologically implausible)',
-         'Within 5 minutes of form submission',
+         'Within ~30 seconds of form submission',
          'Facility worker'],
         ['Missing report',
          'Facility has no completed dataset registration by day 5 of the following month',
@@ -504,7 +504,7 @@ bullet('contacts table in SQLite seeded with presenter\'s phone for: Limalimo HP
 bullet('Presenter\'s phone visible to audience (screen mirror or camera pointing at phone)')
 bullet('Twilio account active and TWILIO_FROM_NUMBER configured in .env')
 sp()
-body('To trigger an immediate DQ check without waiting 5 minutes: POST http://localhost:5001/api/scan. This fires all three checks instantly and is the recommended way to trigger detections during the demo.')
+body('The agent detects new submissions within ~30 seconds via lastUpdated polling, so in practice the SMS arrives almost immediately after the form is submitted. For the demo, you can also trigger an instant check via: POST http://localhost:5001/api/scan — this bypasses the poll cycle and runs DQ across all facilities immediately.')
 sp()
 
 h2('Demo A — Statistical Outlier: Limalimo Health Post (~5 min)')

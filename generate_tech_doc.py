@@ -135,7 +135,23 @@ sp()
 
 # ── 4. DQ Engine ──────────────────────────────────────────────────────────────
 h1('4. DQ Engine: Three Checks')
-body('The agent runs three checks against the DHIS2 REST API. Each is a single HTTP request. Results are consolidated, deduplicated against open issues in the database, and new issue records are created for any new violations. Checks run every 5 minutes (outlier, DTP consistency) and once daily (missing reports).')
+body('The agent detects new submissions by polling DHIS2\'s lastUpdated parameter every 30 seconds — a lightweight query that costs essentially nothing when nothing has changed. Only when changes are found does the agent run targeted DQ checks against the specific (orgUnit, period) pairs that have new data. Missing reports are the exception: detecting an absence cannot be event-driven, so they run on a separate daily cron.')
+sp()
+
+h2('4.0  Change detection (lastUpdated poll)')
+body('Every 30 seconds the agent queries which data values have changed since the previous check. The response is an empty list when nothing was submitted — the DQ checks below are never triggered in that case. When changes are present, the agent extracts the affected (orgUnit, period) pairs and passes them to the DQ checks as a targeted scope, rather than scanning all facilities.')
+mono(
+    'GET /api/dataValueSets\n'
+    '  ?dataSet=vI4ihClxSm4\n'
+    '  &orgUnit=RFhqluFmvRG\n'
+    '  &lastUpdated={iso_timestamp_of_last_check}\n'
+    '  &fields=orgUnit,period\n'
+    '\n'
+    'If response.dataValues is empty: do nothing, update last_checked timestamp\n'
+    'If non-empty: extract unique (orgUnit, period) pairs\n'
+    '             pass to outlier + DTP checks as scoped targets\n'
+    '             update last_checked timestamp'
+)
 sp()
 
 h2('4.1  Outlier detection')
@@ -219,7 +235,7 @@ mono(
 sp()
 
 h2('4.5  Deduplication')
-body('Before creating a new issue, the agent queries the database for any open issue with the same (org_unit_uid, period, check_type, data_element_uid). If one exists and is not yet resolved or dismissed, the detection is skipped silently. This prevents duplicate SMS notifications when the same violation appears on successive 5-minute poll cycles.')
+body('Before creating a new issue, the agent queries the database for any open issue with the same (org_unit_uid, period, check_type, data_element_uid). If one exists and is not yet resolved or dismissed, the detection is skipped silently. This prevents duplicate SMS notifications if the same facility submits an update and the violation is still present on the next poll cycle.')
 sp()
 
 # ── 5. Database Schema ────────────────────────────────────────────────────────
@@ -453,7 +469,7 @@ tbl(
         ['/issues/<id>',   'GET',  'Detail view: full SMS thread for one issue, DHIS2 data element values, timeline of state changes.'],
         ['/webhook/sms',   'POST', 'Twilio inbound SMS webhook. Validates Twilio signature, routes reply to state machine.'],
         ['/api/status',    'GET',  'JSON health check: uptime, open issue count, last successful poll timestamp, last error.'],
-        ['/api/scan',      'POST', 'Trigger an immediate DQ check (all three checks) without waiting for the 5-minute poll interval. Optional query param ?check=missing_reports to run only the completeness check. Returns JSON of new issues created. Used for demos and manual testing.'],
+        ['/api/scan',      'POST', 'Trigger an immediate DQ check without waiting for the next 30-second poll cycle. Runs outlier + DTP checks across all facilities (ignores lastUpdated scoping). Optional ?check=missing_reports to run only the completeness check. Returns JSON of new issues created. Used for demos and manual testing.'],
     ]
 )
 sp()
@@ -465,9 +481,12 @@ sp()
 tbl(
     ['Job ID', 'Schedule', 'What it does'],
     [
-        ['poll_dhis2',
-         'Every 5 minutes',
-         'Runs outlier detection and DTP validation checks for current and prior period. Creates new issues for new violations. Deduplicates against open issues.'],
+        ['poll_changes',
+         'Every 30 seconds',
+         'Queries GET /api/dataValueSets?lastUpdated={last_checked}. If the response is empty, does nothing. If non-empty, extracts the changed (orgUnit, period) pairs and passes them to run_dq_checks as a targeted scope. Updates last_checked timestamp on every cycle.'],
+        ['run_dq_checks',
+         'On-demand (triggered by poll_changes when changes detected)',
+         'Runs outlier detection and DTP validation only for the (orgUnit, period) pairs identified by poll_changes. Not on a fixed schedule — fires only when new data is present. Deduplicates against open issues before creating new records.'],
         ['check_missing_reports',
          'Daily at 08:00 EAT (from day 5 of month)',
          'Queries completeDataSetRegistrations for prior month. Flags facilities with no registration. Skips if prior to day 5.'],
@@ -503,7 +522,7 @@ mono(
     '      TWILIO_AUTH_TOKEN:    ${TWILIO_AUTH_TOKEN}\n'
     '      TWILIO_FROM_NUMBER:   ${TWILIO_FROM_NUMBER}\n'
     '      OUTLIER_THRESHOLD:    3.0\n'
-    '      POLL_INTERVAL_MIN:    5\n'
+    '      POLL_INTERVAL_SEC:    30\n'
     '      MISSING_REPORT_DAY:   5\n'
     '    depends_on:\n'
     '      - web\n'
@@ -537,7 +556,7 @@ tbl(
         ['TWILIO_AUTH_TOKEN',    'Agent',                'Twilio auth token'],
         ['TWILIO_FROM_NUMBER',   'Agent',                'Twilio sending phone number (E.164 format)'],
         ['OUTLIER_THRESHOLD',    'Agent',                'Z-score threshold for outlier detection (default: 3.0)'],
-        ['POLL_INTERVAL_MIN',    'Agent',                'DQ check poll interval in minutes (default: 5)'],
+        ['POLL_INTERVAL_SEC',    'Agent',                'lastUpdated poll interval in seconds (default: 30). DQ checks only fire when changes are found — this controls detection latency, not API cost.'],
         ['MISSING_REPORT_DAY',   'Agent',                'Day of month to start missing report checks (default: 5)'],
         ['POSTGRES_DB',          'docker-compose.yml',   'PostgreSQL database name (DHIS2 only)'],
         ['POSTGRES_USER',        'docker-compose.yml',   'PostgreSQL username'],
@@ -554,8 +573,10 @@ mono(
     'T+0:00  Facility worker submits form in DHIS2 (as any authenticated DHIS2 user)\n'
     '         Data lands in datavalue table immediately\n'
     '\n'
-    'T+0:05  poll_dhis2 job fires\n'
-    '  → GET /api/outlierDetection?... → Limalimo HP, BCG <1yr, value=350, z=8.4\n'
+    'T+0:30  poll_changes fires\n'
+    '  → GET /api/dataValueSets?...&lastUpdated={T+0:00} → Limalimo HP / 202604 returned\n'
+    '  → run_dq_checks triggered for (PunEEFHArGE, 202604)\n'
+    '  → GET /api/outlierDetection?ou=PunEEFHArGE&... → BCG <1yr, value=350, z=8.4\n'
     '  → dedup check: no open issue for (PunEEFHArGE, 202604, outlier, WSy7zOZx1Wl)\n'
     '  → INSERT INTO issues (id=\'DQ-AX42\', status=\'notified\', ...)\n'
     '  → SELECT phone FROM contacts WHERE org_unit_uid=\'PunEEFHArGE\' AND level=5\n'
