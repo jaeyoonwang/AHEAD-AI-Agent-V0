@@ -442,8 +442,8 @@ body('Format: DQ-XXXX (4-character suffix). Character set excludes visually ambi
 sp()
 
 # ── 9. Flask Application ──────────────────────────────────────────────────────
-h1('9. Flask Application')
-body('A single Flask process on port 5001 handles the inbound SMS webhook and serves the issue log web page. Runs in the same Docker container as the scheduler and DQ engine.')
+h1('9. Flask Application (Standalone Web App)')
+body('A single Flask process on port 5001 handles the inbound SMS webhook and serves the issue log web app. The issue log is a standalone web application — completely separate from DHIS2, no DHIS2 login required, readable by anyone with network access to port 5001. It reads from the agent\'s own SQLite database. Runs in the same Docker container as the scheduler and DQ engine.')
 sp()
 tbl(
     ['Endpoint', 'Method', 'Description'],
@@ -453,6 +453,7 @@ tbl(
         ['/issues/<id>',   'GET',  'Detail view: full SMS thread for one issue, DHIS2 data element values, timeline of state changes.'],
         ['/webhook/sms',   'POST', 'Twilio inbound SMS webhook. Validates Twilio signature, routes reply to state machine.'],
         ['/api/status',    'GET',  'JSON health check: uptime, open issue count, last successful poll timestamp, last error.'],
+        ['/api/scan',      'POST', 'Trigger an immediate DQ check (all three checks) without waiting for the 5-minute poll interval. Optional query param ?check=missing_reports to run only the completeness check. Returns JSON of new issues created. Used for demos and manual testing.'],
     ]
 )
 sp()

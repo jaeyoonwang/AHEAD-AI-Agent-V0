@@ -106,6 +106,8 @@ tbl(
 sp()
 body('Important distinction: the notification contacts (phone numbers) are stored in the agent\'s own contact registry, not in DHIS2 user accounts. DHIS2 user accounts control data-entry access. The contact registry controls who gets notified. These are maintained separately.')
 sp()
+body('Demo focus: The live demonstration centres entirely on the facility-level health worker — the person who receives the initial SMS, engages in the correction conversation, and sees their submission corrected in DHIS2. The escalation cascade (woreda → zone → region → national) is part of the production architecture and fires automatically in the background, but is not walked through in the demo. The AHEAD team monitors everything via the standalone issue log web app shown at the end of the demo.')
+sp()
 
 # ── 2. Notification Triggers ──────────────────────────────────────────────────
 h1('2. Notification Triggers')
@@ -343,9 +345,9 @@ sp()
 body('Escalation messages at woreda level and above are sent as a single summary SMS covering all unresolved issues from that org unit in the same period — not one SMS per issue. This prevents notification fatigue at higher levels where one officer may receive reports from many facilities.')
 sp()
 
-# ── 6. Issue Log Web Page ─────────────────────────────────────────────────────
-h1('6. Issue Log Web Page')
-body('A standalone Flask-served HTML page at port 5001. Intended for the AHEAD team and supervisors who want a real-time view of all issues without logging into DHIS2. The page reads from the agent\'s SQLite database, not from DHIS2.')
+# ── 6. Issue Log Web App ──────────────────────────────────────────────────────
+h1('6. Issue Log Web App (Standalone)')
+body('A standalone web application at http://localhost:5001, completely separate from DHIS2. No DHIS2 login required. It reads from the agent\'s own SQLite database and is the primary monitoring surface for the AHEAD team and supervisors. Every issue the agent detects, every SMS sent and received, and every state change is visible here in real-time.')
 sp()
 
 h2('Page layout (wireframe)')
@@ -474,6 +476,257 @@ tbl(
         ['Amharic messages',                                    '—',  'Yes', 'Claude can generate; need translation review before sending'],
         ['DHIS2 embedded app (issue log inside DHIS2)',        '—',  'Yes', 'Requires DHIS2 App Framework (React); standalone page sufficient for MVP'],
         ['Inbound phone call routing',                          '—',  'Yes', 'Higher complexity; SMS covers facility workers adequately for MVP'],
+    ]
+)
+sp()
+
+# ── 10. Demo Script ───────────────────────────────────────────────────────────
+h1('10. Demo Script')
+body('Four demos covering each seeded DQ issue type, followed by the issue log overview. Total runtime: 14-18 minutes. Each demo follows the same arc: show the raw issue in DHIS2, trigger the agent, run the SMS conversation on the presenter\'s phone, then show the correction applied in DHIS2 and the resolved state in the issue log. The primary persona throughout is the facility-level health worker.')
+sp()
+
+tbl(
+    ['Demo', 'Issue type', 'Facility', 'Duration', 'What it proves'],
+    [
+        ['A', 'Statistical outlier',    'Limalimo Health Post',  '~5 min', 'Full SMS loop: detection → conversation → DHIS2 correction'],
+        ['B', 'DTP1/DTP3 inconsistency','Adi Goshu Health Post', '~4 min', 'Validation rule violation → correction via SMS'],
+        ['C', 'Missing report',         'Bichena Health Post',   '~3 min', 'Daily cron detection → notification → LATER/DONE reply'],
+        ['D', 'Issue log web app',      '(all facilities)',      '~3 min', 'Supervisor view: all issues, statuses, and SMS threads'],
+    ]
+)
+sp()
+
+h2('Prerequisites — confirm before presenting')
+bullet('DHIS2 running: http://localhost:8080 responds with login page')
+bullet('Agent running: http://localhost:5001/api/status returns JSON with uptime')
+bullet('inject_data.py has been run — three seeded issues exist for period 202604 (April 2026)')
+bullet('contacts table in SQLite seeded with presenter\'s phone for: Limalimo HP, Adi Goshu HP, Bichena HP')
+bullet('Presenter\'s phone visible to audience (screen mirror or camera pointing at phone)')
+bullet('Twilio account active and TWILIO_FROM_NUMBER configured in .env')
+sp()
+body('To trigger an immediate DQ check without waiting 5 minutes: POST http://localhost:5001/api/scan. This fires all three checks instantly and is the recommended way to trigger detections during the demo.')
+sp()
+
+h2('Demo A — Statistical Outlier: Limalimo Health Post (~5 min)')
+body('What this shows: The agent detects a value that is ~10x the expected range for that facility type, sends an SMS with a reference ID, and applies the confirmed correction directly to DHIS2.')
+sp()
+
+body('Step 1 — Show the issue in DHIS2 (1 min)')
+bullet('Log in at http://localhost:8080 as admin / [DHIS2_ADMIN_PASS from .env]')
+bullet('Open Data Entry (grid icon in top menu)')
+bullet('Navigate in the left org unit tree: Ethiopia → Amhara → North Gondar → Janamora Woreda → Limalimo Health Post')
+bullet('Select dataset: EPI - Routine vaccine delivery | Period: April 2026')
+bullet('Point out: BCG < 1 year = 350. For a health post, the normal range is 30-45. This is ~10x the expected maximum.')
+sp()
+
+body('Step 2 — Trigger the agent (30 sec)')
+bullet('In a terminal or browser: POST http://localhost:5001/api/scan')
+bullet('Alternatively: curl -s -X POST http://localhost:5001/api/scan')
+bullet('The agent runs outlier detection and creates issue DQ-XXXX for Limalimo HP')
+bullet('Navigate to http://localhost:5001/issues — the new issue appears as OPEN')
+sp()
+
+body('Step 3 — Receive the SMS')
+bullet('Presenter\'s phone receives:')
+mono(
+    '[DQ-XXXX] Limalimo HP, Apr 2026\n'
+    'BCG under-1: 350 reported\n'
+    'Normal range: 30-45 (~10x high)\n'
+    'Data entry error?\n'
+    'Reply with correct value or KEEP to leave as-is.'
+)
+bullet('Point out to audience: the reference ID, the specific data element named, the normal range given, the clear call to action')
+sp()
+
+body('Step 4 — Reply with the corrected value')
+bullet('Reply to the SMS: 35')
+bullet('Agent receives the reply, Claude parses it as intent=correct, value=35')
+bullet('Agent sends confirmation:')
+mono(
+    '[DQ-XXXX] Confirm change:\n'
+    'Limalimo HP, Apr 2026\n'
+    'BCG under-1: 350 -> 35\n'
+    'Reply YES to apply or NO to cancel.'
+)
+sp()
+
+body('Step 5 — Confirm')
+bullet('Reply to the SMS: YES')
+bullet('Agent writes value=35 to DHIS2 via POST /api/dataValueSets (as agent_service)')
+bullet('Agent sends:')
+mono(
+    '[DQ-XXXX] Done.\n'
+    'BCG under-1 updated to 35 at Limalimo HP.\n'
+    'Issue closed. Thank you.'
+)
+sp()
+
+body('Step 6 — Show correction in DHIS2')
+bullet('Switch back to the DHIS2 browser tab')
+bullet('Refresh the data entry form for Limalimo HP / April 2026')
+bullet('BCG < 1 year now shows 35 (was 350)')
+bullet('Optional: open DHIS2 audit log to show the change was made by agent_service, not a human')
+sp()
+
+body('Step 7 — Show issue log')
+bullet('Switch to http://localhost:5001/issues')
+bullet('Issue DQ-XXXX shows status: RESOLVED, with resolved value 35')
+bullet('Click to expand the full SMS thread — 5 messages visible: initial, "35", confirmation, "YES", closure')
+sp()
+
+body('Expected final state after Demo A:')
+bullet('DHIS2: Limalimo HP, Apr 2026, BCG < 1 year = 35 (was 350)')
+bullet('Issue log: DQ-XXXX | Outlier: BCG | Limalimo HP | RESOLVED | Corrected value: 35')
+bullet('SMS thread: 5 messages (2 outbound, 2 inbound, 1 outbound closure)')
+sp()
+
+h2('Demo B — DTP1/DTP3 Inconsistency: Adi Goshu Health Post (~4 min)')
+body('What this shows: The EPI metadata package\'s built-in validation rule (Penta3 <= Penta1) is violated. The agent detects it via /api/validationResults and notifies the facility worker.')
+sp()
+
+body('Step 1 — Show the issue in DHIS2')
+bullet('Navigate to: North Gondar → Addi Arekay Woreda → Adi Goshu Health Post')
+bullet('Dataset: EPI - Routine vaccine delivery | Period: April 2026')
+bullet('Point out: DPT-HepB-HIB 1 (Penta1) < 1 year = 45 | DPT-HepB-HIB 3 (Penta3) < 1 year = 80')
+bullet('Explain: the third dose of a vaccine series can never exceed the first dose — dropout only goes one direction. This is a transposition error.')
+sp()
+
+body('Step 2 — Trigger the agent')
+bullet('POST http://localhost:5001/api/scan')
+bullet('Agent triggers a DHIS2 validation run, reads the violation, creates a new issue')
+bullet('http://localhost:5001/issues — new issue appears for Adi Goshu HP')
+sp()
+
+body('Step 3 — Receive the SMS')
+mono(
+    '[DQ-XXXX] Adi Goshu HP, Apr 2026\n'
+    'Penta3 under-1: 80\n'
+    'Penta1 under-1: 45\n'
+    '3rd dose cannot exceed 1st dose.\n'
+    'Reply with correct Penta3 value or KEEP.'
+)
+sp()
+
+body('Step 4 — Reply and confirm')
+bullet('Reply: 38 (a plausible Penta3 value — approximately 85% of Penta1=45, matching normal dropout)')
+bullet('Agent confirms: "[DQ-XXXX] Confirm: Penta3 under-1 at Adi Goshu HP Apr 2026: 80 -> 38. Reply YES."')
+bullet('Reply: YES')
+bullet('Agent applies correction, sends closure SMS')
+sp()
+
+body('Step 5 — Show correction')
+bullet('Refresh DHIS2: Penta3 < 1 year = 38 (was 80). Penta1 (45) now correctly exceeds Penta3 (38).')
+bullet('Issue log: DQ-XXXX | DTP inconsistency | Adi Goshu HP | RESOLVED | Corrected value: 38')
+sp()
+
+body('Expected final state after Demo B:')
+bullet('DHIS2: Adi Goshu HP, Apr 2026, Penta3 < 1 year = 38 (was 80)')
+bullet('Issue log: DQ-XXXX | DTP3 > DTP1 | Adi Goshu HP | RESOLVED | Corrected value: 38')
+bullet('SMS thread: 5 messages')
+sp()
+
+h2('Demo C — Missing Report: Bichena Health Post (~3 min)')
+body('What this shows: The agent\'s daily missing report check fires and detects a facility that submitted no data for the period. Two reply paths are shown: LATER (still coming) and the optional DONE path (already submitted).')
+sp()
+
+body('Step 1 — Show the blank form in DHIS2')
+bullet('Navigate to: North Gondar → Dabat Woreda → Bichena Health Post')
+bullet('Dataset: EPI - Routine vaccine delivery | Period: April 2026')
+bullet('The entire form is blank — no values in any field')
+bullet('Explain: inject_data.py deliberately skipped this facility for April 2026 to simulate a facility that failed to submit its monthly report')
+sp()
+
+body('Step 2 — Trigger the missing report check')
+bullet('POST http://localhost:5001/api/scan?check=missing_reports')
+bullet('Agent queries completeDataSetRegistrations, finds Bichena HP absent for 202604')
+bullet('New issue created: type=missing_report, facility=Bichena HP')
+sp()
+
+body('Step 3 — Receive the SMS')
+mono(
+    '[DQ-XXXX] Bichena HP\n'
+    'No EPI report received for Apr 2026.\n'
+    'Expected by May 5.\n'
+    'Reply DONE if already submitted,\n'
+    'or LATER if submitting this week.'
+)
+sp()
+
+body('Step 4a — Reply path: LATER (primary demo path)')
+bullet('Reply: LATER')
+bullet('Agent sends:')
+mono(
+    '[DQ-XXXX] Noted. Please submit your Apr 2026\n'
+    'EPI report when ready.\n'
+    'We will follow up if not received by end of week.'
+)
+bullet('Issue remains OPEN in the log — the agent will retry and escalate if no submission arrives')
+sp()
+
+body('Step 4b — Reply path: DONE (optional extension)')
+bullet('If you want to show the DONE flow: have the facility worker first submit data for Bichena HP in DHIS2 (as eth_woreda_01 or admin), then reply DONE')
+bullet('Agent re-checks DHIS2 within the hour. If the registration now appears, it sends:')
+mono(
+    '[DQ-XXXX] Confirmed. Bichena HP Apr 2026\n'
+    'report received. Issue closed.'
+)
+sp()
+
+body('Expected final state after Demo C:')
+bullet('DHIS2: Bichena HP, Apr 2026 — still blank (LATER path) or newly filled (DONE path)')
+bullet('Issue log: DQ-XXXX | Missing report | Bichena HP | OPEN/NOTIFIED (LATER) or RESOLVED (DONE)')
+bullet('SMS thread: 2 messages (notification + LATER acknowledgement)')
+sp()
+
+h2('Demo D — Issue Log Web App (~3 min)')
+body('What this shows: The standalone supervisor view. The AHEAD team and George\'s team would use this to monitor all issues across the Ethiopia org unit hierarchy in real-time, without logging into DHIS2.')
+sp()
+
+body('Step 1 — Open the issue log')
+bullet('Navigate to http://localhost:5001/issues in the browser')
+bullet('Three issues visible: Demo A (RESOLVED), Demo B (RESOLVED), Demo C (OPEN or RESOLVED depending on path taken)')
+sp()
+
+body('Step 2 — Show filtering')
+bullet('Use the Status filter: select "Open" — only Demo C issue remains visible')
+bullet('Use the Status filter: select "Resolved" — only Demo A and B visible')
+bullet('Use the Period filter: select "Apr 2026" — all three issues (confirms period scoping)')
+sp()
+
+body('Step 3 — Expand a conversation thread')
+bullet('Click expand on Demo A (DQ-XXXX, Limalimo HP)')
+bullet('Show the full SMS thread: timestamp, direction (IN/OUT), message body')
+bullet('Point out: every message is logged, inbound and outbound, with exact timestamps')
+bullet('This is the audit trail — if there is ever a dispute about what was agreed, the thread is the record')
+sp()
+
+body('Step 4 — Highlight the escalation indicator (if applicable)')
+bullet('If Demo C has been open for a while without resolution, the cascade_level column shows "Woreda" — the issue has been escalated')
+bullet('Explain: this escalation happened automatically with no manual intervention')
+sp()
+
+body('Expected final state after Demo D:')
+bullet('Issue log shows 3 issues: 2 Resolved (A, B), 1 Open or Resolved (C)')
+bullet('Conversation threads visible and expandable for each')
+bullet('Audience understands the page is the single source of truth for all DQ activity')
+sp()
+
+h2('Common demo questions and answers')
+tbl(
+    ['Question', 'Answer'],
+    [
+        ['What if the facility worker ignores the SMS?',
+         'The agent retries every 24h for 3 days, then automatically sends a summary to the woreda HMIS officer. No manual follow-up needed from the AHEAD team.'],
+        ['Who maintains the list of phone numbers?',
+         'The AHEAD team maintains a contacts CSV that is loaded into the agent\'s database at startup. It maps each org unit to a phone number and is updated as staff change.'],
+        ['Can the agent send messages in Amharic?',
+         'Not in MVP — English only. Claude can generate Amharic messages and this is a straightforward Phase 2 upgrade, pending translation review.'],
+        ['Does the facility worker need to install an app?',
+         'No. All interaction is via standard SMS. Works on any phone, including basic feature phones without internet.'],
+        ['What if the agent applies a wrong correction?',
+         'The agent always asks for explicit YES confirmation before writing anything to DHIS2. The original value, proposed value, and final value are all logged in the issue thread for audit.'],
+        ['What happens to issues that never get resolved?',
+         'They escalate through the hierarchy (woreda → zone → region) and appear in the national monthly digest. They remain open and visible in the issue log indefinitely until manually closed.'],
     ]
 )
 sp()
