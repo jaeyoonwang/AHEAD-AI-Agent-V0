@@ -13,10 +13,18 @@ Five users:
   eth_regional_01   scoped to Amhara Region                (view only)
   eth_national_01   scoped to Ethiopia                     (view only)
 
-All users share password: Ethiopia@2024
+All user passwords are read from DHIS2_USER_PASSWORD in .env
 """
 
-import json, urllib.request, urllib.error, base64, sys, os
+import json, urllib.request, urllib.error, base64, sys, os, pathlib
+
+_env = pathlib.Path(__file__).with_name('.env')
+if _env.exists():
+    for _line in _env.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith('#') and '=' in _line:
+            _k, _, _v = _line.partition('=')
+            os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
 
 _creds   = f"{os.environ.get('DHIS2_ADMIN_USER', '')}:{os.environ.get('DHIS2_ADMIN_PASS', '')}"
 AUTH     = base64.b64encode(_creds.encode()).decode()

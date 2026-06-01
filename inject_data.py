@@ -20,8 +20,16 @@ Three seeded data quality issues in April 2026 (202604):
 Output: data_injection_log.json
 """
 
-import json, urllib.request, urllib.error, base64, random, sys, os
+import json, urllib.request, urllib.error, base64, random, sys, os, pathlib
 from datetime import datetime, timezone
+
+_env = pathlib.Path(__file__).with_name('.env')
+if _env.exists():
+    for _line in _env.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith('#') and '=' in _line:
+            _k, _, _v = _line.partition('=')
+            os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
 
 random.seed(42)  # deterministic — same values on every run
 
@@ -136,13 +144,14 @@ for fac_name, fac in facilities.items():
             continue
 
         values = baseline(ftype)
+        issue_label = None
 
         # Issue 2: BCG spike in Limalimo Health Post, Apr 2026
         if fac_name == OUTLIER_FAC and period == '202604':
             for v in values:
                 if v['dataElement'] == BCG and v['categoryOptionCombo'] == U1:
                     v['value'] = '350'   # ~10x normal for a health post
-            print(f'    {period}  OK  [OUTLIER seeded: BCG <1yr = 350]')
+            issue_label = 'OUTLIER seeded: BCG <1yr = 350'
 
         # Issue 3: Penta3 > Penta1 in Adi Goshu Health Post, Apr 2026
         elif fac_name == INCONSIST_FAC and period == '202604':
@@ -151,23 +160,18 @@ for fac_name, fac in facilities.items():
                     v['value'] = '45'
                 if v['dataElement'] == PENTA3 and v['categoryOptionCombo'] == U1:
                     v['value'] = '80'   # Penta3 > Penta1 — implausible
-            print(f'    {period}  OK  [INCONSISTENCY seeded: Penta3(80) > Penta1(45)]')
-
-        else:
-            ok, status = post_values(uid, period, values)
-            symbol = 'OK' if ok else 'ERR'
-            if not ok:
-                log['errors'].append({'facility': fac_name, 'period': period, 'error': status})
-            log['facilities'][fac_name]['periods'][period] = symbol
-            print(f'    {period}  {symbol}')
-            if ok:
-                total_ok += 1
-            continue
+            issue_label = 'INCONSISTENCY seeded: Penta3(80) > Penta1(45)'
 
         ok, status = post_values(uid, period, values)
         if not ok:
             log['errors'].append({'facility': fac_name, 'period': period, 'error': status})
-        log['facilities'][fac_name]['periods'][period] = 'ok_with_issue'
+        symbol = 'OK' if ok else 'ERR'
+        if issue_label:
+            log['facilities'][fac_name]['periods'][period] = f'{symbol.lower()}_with_issue'
+            print(f'    {period}  {symbol}  [{issue_label}]')
+        else:
+            log['facilities'][fac_name]['periods'][period] = symbol
+            print(f'    {period}  {symbol}')
         if ok:
             total_ok += 1
 

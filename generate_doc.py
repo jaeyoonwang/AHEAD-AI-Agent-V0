@@ -164,42 +164,43 @@ body("These four checks are not from the EPI metadata package — they come from
 spacer()
 
 add_table(
-    ['Check', 'Method', 'Flag condition'],
+    ['Check', 'DHIS2 API endpoint', 'Flag condition'],
     [
         ['Missing report',
-         'Daily cron queries DHIS2 completeness endpoint',
-         'Facility has no submission by day 5 of the following month'],
+         'GET /api/completeDataSetRegistrations',
+         'Facility has no completed submission by day 5 of the following month'],
         ['Statistical outlier',
-         '5 methods in parallel: SD, MAD, Median AD, Lowess, Abs diff from mean',
-         '4+ methods flag = strong (notify immediately); 1–3 = weak (batch to weekly review). Thresholds configurable.'],
+         'GET /api/outlierDetection (Z-score + IQR)',
+         'DHIS2 built-in outlier detection flags value as anomalous vs. facility historical baseline. Threshold configurable (default z=3.0). Full 5-method ensemble (SD, MAD, Lowess, etc.) deferred to Phase 2.'],
         ['DTP1/DTP3 consistency',
-         'Compare Penta1 vs Penta3 for same facility-period via DHIS2 API',
-         'Penta3 > Penta1 is implausible. Thresholds vary by level: facility >30%, woreda monthly >20%, woreda annual >15%.'],
+         'GET /api/validationResults',
+         'EPI metadata package includes a built-in validation rule: Penta3 ≤ Penta1. Any violation is returned directly by this endpoint.'],
         ['Name consistency',
-         'Fuzzy match admin1/admin2 pairs against reference gazetteer',
-         'Record count below expected max for that admin pair'],
+         'GET /api/organisationUnits + dataValueSets',
+         'Compare submitted org unit codes against the reference hierarchy. Deferred to Phase 2 — not covered by DHIS2 built-in rules.'],
     ]
 )
 spacer()
 
-h2('R code reuse strategy')
-body("Rather than rewriting the statistical logic in Python, the plan is to reuse the AHEAD team's existing R scripts directly. The Python agent pulls data from DHIS2, formats it as CSV, calls the R script as a subprocess, and reads the flagged output. This is the right approach for MVP because:")
-bullet('The statistical logic is already built and trusted by the team — no need to reimplement it')
-bullet('Rewriting in Python introduces risk of subtle numerical differences that are hard to validate')
-bullet('The only new code needed is the input/output wrappers around the existing R scripts')
+h2('Why DHIS2 API-native checks for MVP')
+body('Rather than calling external R scripts via subprocess, the MVP uses DHIS2\'s own REST API for all DQ checks. This is the right approach for Phase 1 because:')
+bullet('No external dependencies — no R installation, no script access required; agent is a single Python process')
+bullet('The EPI Aggregate Metadata Package already ships with DTP1/DTP3 validation rules; no reimplementation needed')
+bullet('DHIS2\'s outlier detection endpoint is sufficient to catch 10× spikes; calibrated thresholds are a Phase 2 concern')
+bullet('Reduces the critical path — no dependency on obtaining and reviewing the AHEAD team\'s R scripts before building can start')
 spacer()
 
 mono(
-    'DHIS2 API  →  Python pulls data  →  formats as CSV\n'
-    '                                           │\n'
-    '                              Rscript dq_checks.R --input data.csv\n'
-    '                                           │\n'
-    '                              Python reads flags.json\n'
-    '                                           │\n'
-    '                              Creates issue objects  →  cascade'
+    'DHIS2 API  →  GET /api/completeDataSetRegistrations  →  missing report flags\n'
+    '           →  GET /api/outlierDetection              →  outlier flags\n'
+    '           →  GET /api/validationResults             →  DTP consistency flags\n'
+    '                         │\n'
+    '               Python consolidates results\n'
+    '                         │\n'
+    '               Creates issue objects  →  cascade'
 )
 spacer()
-body('The main prerequisite is getting access to the existing R scripts. A quick read-through to assess how modular they are is the most important de-risking step before starting the DQ engine build.')
+body('The full AHEAD 5-method ensemble (SD, MAD, Median AD, Lowess, Absolute diff from mean) is the Phase 2 upgrade path, once access to the existing R scripts is available. Swapping in the R subprocess wrapper at that point requires only changing the DQ engine module — nothing else in the stack changes.')
 spacer()
 
 # ── 4. Two-way SMS conversation ───────────────────────────────────────────────
@@ -287,10 +288,10 @@ h1('6. Technical Stack')
 add_table(
     ['Layer', 'Technology', 'Rationale'],
     [
-        ['DQ checks',          'George\'s R scripts (called via Python subprocess)',
-         'Reuses validated logic directly; no statistical reimplementation risk'],
+        ['DQ checks',          'DHIS2 REST API (outlierDetection, validationResults, completeDataSetRegistrations)',
+         'MVP uses built-in endpoints — no external dependencies. Phase 2 upgrades to AHEAD R-script ensemble via subprocess wrapper.'],
         ['Agent orchestration', 'Python',
-         'Glue layer: poll DHIS2, call R, manage state, send SMS, apply fixes'],
+         'Glue layer: poll DHIS2, consolidate DQ results, manage state, send SMS, apply fixes'],
         ['LLM',                'Claude API (claude-haiku-4-5 for parsing, sonnet for generation)',
          'Parse free-text replies; generate context-aware notification messages'],
         ['DHIS2 integration',  'DHIS2 REST API only (GET dataValueSets, POST dataValueSets)',
@@ -317,8 +318,8 @@ h1('7. Feasibility Assessment')
 add_table(
     ['Component', 'Effort', 'Risk', 'Notes'],
     [
-        ['DQ engine (R script reuse)',        'Low',        'Low',    'Subprocess wrapper only; core logic already exists in R'],
-        ['Missing report detection',          'Low',        'Low',    'Simple completeness query against DHIS2 API'],
+        ['DQ engine (DHIS2 built-in checks)', 'Low',        'Low',    'API calls only — outlierDetection, validationResults, completeDataSetRegistrations. No R dependency.'],
+        ['Missing report detection',          'Low',        'Low',    'completeDataSetRegistrations endpoint; single query per period'],
         ['Cascade state machine',             'Medium',     'Low',    'Standard pattern; main work is timer and retry logic'],
         ['Outbound SMS (Twilio)',              'Low',        'Low',    'Twilio SMS is straightforward; live in minutes'],
         ['Inbound SMS webhook + ref ID match','Low–Medium', 'Low',    'Flask webhook + reference ID routing is simple and reliable'],
@@ -335,7 +336,7 @@ spacer()
 h1('8. MVP Scope')
 
 h2('In scope')
-bullet('Post-commit DQ checks reusing the existing R scripts: all four checks — outlier detection, DTP1/DTP3 consistency, missing report, and name consistency')
+bullet('Post-commit DQ checks via DHIS2 REST API: outlier detection (outlierDetection endpoint), DTP1/DTP3 consistency (validationResults), missing report (completeDataSetRegistrations). Name consistency deferred to Phase 2.')
 bullet('Full cascade: facility → woreda → zone → region → national')
 bullet('Two-way SMS with reference IDs and a conversational confirmation loop before applying any fix')
 bullet('Structured response options per check type (matching the existing Excel dropdown options)')
@@ -355,7 +356,7 @@ spacer()
 
 # ── 9. Open questions for George ──────────────────────────────────────────────
 h1('9. Open Questions')
-bullet('Access to the existing R scripts — reviewing them is the most important prerequisite before building the DQ engine')
+bullet('Access to the existing R scripts — needed for Phase 2 to upgrade outlier detection to the 5-method ensemble; not a blocker for MVP')
 bullet('Reporting deadline — what day of the following month triggers the missing report flag?')
 bullet('Contact registry — do facility workers have registered mobile numbers, or is there a shared facility phone? Who owns and maintains that list?')
 bullet('Dismissed warnings — if a facility acknowledges a flag but submits the original value anyway, should that automatically escalate to the woreda?')
