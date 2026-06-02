@@ -37,7 +37,7 @@ from db import init_db, get_conn
 #
 # Phone numbers here are placeholders — replace with real numbers before demo.
 
-_UID_MAP_PATH = _ROOT / 'dhis2' / 'ethiopia_uid_map.json'
+_UID_MAP_PATH = _ROOT / 'ethiopia_uid_map.json'
 
 
 def _load_uids():

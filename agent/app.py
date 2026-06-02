@@ -61,7 +61,7 @@ def _startup():
     """Initialise the database and hierarchy cache on first run."""
     init_db()
 
-    uid_map_path = _ROOT / 'dhis2' / 'ethiopia_uid_map.json'
+    uid_map_path = _ROOT / 'ethiopia_uid_map.json'
     if uid_map_path.exists():
         with open(uid_map_path) as f:
             seed_hierarchy(json.load(f))
