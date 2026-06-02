@@ -194,27 +194,55 @@ def api_health():
 
 @app.route('/issues', methods=['GET'])
 def issue_log():
-    """Simple HTML issue log dashboard."""
+    """HTML issue log dashboard with live conversation state."""
     with get_conn() as conn:
-        issues = conn.execute(
-            "SELECT * FROM issues ORDER BY created_at DESC LIMIT 200"
-        ).fetchall()
+        # Join issues with the latest conversation state per issue
+        rows_raw = conn.execute("""
+            SELECT i.*,
+                   c.state      AS conv_state,
+                   c.followup_value AS conv_value
+            FROM issues i
+            LEFT JOIN (
+                SELECT issue_ref_id,
+                       state,
+                       followup_value,
+                       MAX(updated_at) AS latest
+                FROM conversations
+                GROUP BY issue_ref_id
+            ) c ON i.ref_id = c.issue_ref_id
+            ORDER BY i.created_at DESC
+            LIMIT 200
+        """).fetchall()
+
+    # Derive a display status from issue status + conversation state
+    def display_status(issue_status, conv_state):
+        if issue_status == 'resolved':
+            return 'RESOLVED',    '#27ae60'
+        if issue_status == 'ignored':
+            return 'CONFIRMED OK', '#7f8c8d'
+        if issue_status == 'escalated':
+            return 'ESCALATED',   '#c0392b'
+        if conv_state == 'awaiting_confirmation':
+            return 'CONFIRMING',  '#8e44ad'
+        if conv_state == 'awaiting_followup':
+            return 'IN PROGRESS', '#2980b9'
+        if conv_state == 'awaiting_option':
+            return 'NOTIFIED',    '#d35400'
+        return 'OPEN', '#e67e22'
 
     rows = []
-    for i in issues:
-        status_color = {
-            'open': '#e67e22', 'resolved': '#27ae60',
-            'escalated': '#c0392b', 'ignored': '#7f8c8d'
-        }.get(i['status'], '#333')
+    for i in rows_raw:
+        label, color = display_status(i['status'], i['conv_state'])
 
-        element = i['data_element'] or '—'
-        value   = f'{int(i["flagged_value"])}' if i['flagged_value'] else '—'
+        element  = i['data_element'] or '—'
+        value    = f'{int(i["flagged_value"])}' if i['flagged_value'] else '—'
         expected = ''
         if i['expected_low'] is not None and i['expected_high'] is not None:
             if i['issue_type'] == 'dtp':
                 expected = f'Penta1={int(i["expected_low"])}'
             else:
-                expected = f'{int(i["expected_low"])}–{int(i["expected_high"])}'
+                lo = max(0, int(i['expected_low']))
+                expected = f'{lo}–{int(i["expected_high"])}'
 
         rows.append(f"""
           <tr>
@@ -225,7 +253,7 @@ def issue_log():
             <td>{element}</td>
             <td>{value}</td>
             <td>{expected}</td>
-            <td style="color:{status_color};font-weight:bold">{i['status'].upper()}</td>
+            <td style="color:{color};font-weight:bold">{label}</td>
             <td>{i['cascade_level']}</td>
             <td style="font-size:0.85em;color:#555">{i['resolution_notes'] or ''}</td>
           </tr>""")
@@ -236,6 +264,7 @@ def issue_log():
 <html><head>
   <title>AHEAD DQ Issue Log</title>
   <meta charset="utf-8">
+  <meta http-equiv="refresh" content="10">
   <style>
     body {{ font-family: -apple-system, sans-serif; padding: 2rem; background: #f4f6f8; }}
     h1   {{ color: #2c3e50; margin-bottom: 0.25rem; }}
@@ -252,7 +281,7 @@ def issue_log():
   </style>
 </head><body>
   <h1>AHEAD DQ Issue Log</h1>
-  <p>All detected data quality issues and their resolution status.</p>
+  <p>Auto-refreshes every 10 seconds. Status updates in real time as contacts respond.</p>
   <table>
     <thead>
       <tr>

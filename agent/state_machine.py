@@ -18,7 +18,7 @@ import dhis2_client as dc
 from db import get_conn, get_active_conversation, get_contact_for_escalation
 from sms import (send_sms, build_outlier_message, build_dtp_message,
                  build_missing_message, build_followup_prompt,
-                 build_confirmation, build_escalation_notice)
+                 build_confirmation, build_escalation_notice, period_label)
 
 _ai = None
 
@@ -192,6 +192,40 @@ def _resolve(conn, conv_id, ref_id, status, action_note):
     )
 
 
+def _build_confirmation_prompt(issue, value, selected_option):
+    """
+    YES/NO confirmation message before writing a corrected value to DHIS2.
+    Sent after the user provides a follow-up value for options that trigger write-back.
+    """
+    ref = issue['ref_id']
+    fac = issue['facility_name']
+    per = period_label(issue['period'])
+
+    if issue['issue_type'] == 'outlier' and selected_option == 4:
+        old = int(issue['flagged_value']) if issue['flagged_value'] else '?'
+        return (
+            f'[{ref}] Confirm change:\n'
+            f'{issue["data_element"]} <1yr — {fac} ({per})\n'
+            f'{old} → {value}\n\n'
+            f'Reply YES to update DHIS2 or NO to re-enter.'
+        )
+    if issue['issue_type'] == 'dtp' and selected_option == 4:
+        old = int(issue['flagged_value']) if issue['flagged_value'] else '?'
+        return (
+            f'[{ref}] Confirm change:\n'
+            f'DTP3 — {fac} ({per})\n'
+            f'{old} → {value}\n\n'
+            f'Reply YES to update DHIS2 or NO to re-enter.'
+        )
+    if issue['issue_type'] == 'missing' and selected_option == 1:
+        return (
+            f'[{ref}] Confirm:\n'
+            f'Expected submission date for {fac} ({per}): {value}\n\n'
+            f'Reply YES to confirm or NO to re-enter.'
+        )
+    return f'[{ref}] Confirm value {value}? Reply YES or NO.'
+
+
 # ── Public: notify a new issue ────────────────────────────────────────────────
 
 def notify_issue(ref_id):
@@ -228,15 +262,25 @@ def notify_issue(ref_id):
 
 # ── Public: handle inbound SMS ────────────────────────────────────────────────
 
+# Options that require a write-back confirmation step
+_NEEDS_CONFIRM = {('outlier', 4), ('dtp', 4), ('missing', 1)}
+
+
 def handle_inbound(from_phone, text):
     """
     Process an inbound SMS reply. Returns the reply text to send back,
     or None if the sender has no active conversation.
+
+    Conversation states:
+      awaiting_option      → user picks a numbered option
+      awaiting_followup    → user provides a value (correct dose count, date, etc.)
+      awaiting_confirmation → user confirms YES/NO before DHIS2 write-back
+      closed               → done
     """
     with get_conn() as conn:
         conv = get_active_conversation(conn, from_phone)
         if not conv:
-            return None  # no active issue — silently ignore
+            return None
 
         issue = conn.execute(
             'SELECT * FROM issues WHERE ref_id=?', (conv['issue_ref_id'],)
@@ -248,10 +292,16 @@ def handle_inbound(from_phone, text):
         body   = text.strip()
         state  = conv['state']
 
+        # Mark issue as in-progress the moment any reply arrives
+        if issue['status'] == 'open':
+            conn.execute(
+                "UPDATE issues SET status='in_progress' WHERE ref_id=?", (ref_id,)
+            )
+
         # ── awaiting_option ──────────────────────────────────────────────────
         if state == 'awaiting_option':
 
-            # Special case: SUBMIT keyword for missing reports
+            # SUBMIT keyword for missing reports
             if issue['issue_type'] == 'missing' and body.upper() == 'SUBMIT':
                 _resolve(conn, conv['id'], ref_id, 'resolved', 'Submission acknowledged.')
                 return build_confirmation(ref_id, 'Submission acknowledged.')
@@ -270,7 +320,7 @@ def handle_inbound(from_phone, text):
                 )
                 return followup
 
-            # No follow-up needed — resolve now
+            # No follow-up needed — resolve immediately
             action = _ACTION_NOTES.get(issue['issue_type'], {}).get(option, 'Response recorded.')
             status = 'ignored' if option == 1 else 'resolved'
             _resolve(conn, conv['id'], ref_id, status, action)
@@ -282,22 +332,55 @@ def handle_inbound(from_phone, text):
             value    = _parse_followup_value(body, issue['issue_type'], selected)
 
             if value is None:
-                return f'[{ref_id}] Please reply with a numeric value.'
+                return f'[{ref_id}] Please reply with a numeric value only.'
 
             conn.execute(
                 'UPDATE conversations SET followup_value=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
                 (value, conv['id'])
             )
 
-            if issue['issue_type'] in ('outlier', 'dtp') and selected == 4:
-                action = _write_back_correction(issue, value)
-            elif issue['issue_type'] == 'missing' and selected == 1:
-                action = f'Expected submission date: {value}.'
-            else:
-                action = f'Value recorded: {value}.'
+            # Options that change DHIS2 data go through a confirmation step
+            if (issue['issue_type'], selected) in _NEEDS_CONFIRM:
+                conn.execute(
+                    "UPDATE conversations SET state='awaiting_confirmation', "
+                    "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (conv['id'],)
+                )
+                return _build_confirmation_prompt(issue, value, selected)
 
+            # All other follow-ups resolve directly
+            action = f'Value recorded: {value}.'
             _resolve(conn, conv['id'], ref_id, 'resolved', action)
             return build_confirmation(ref_id, action)
+
+        # ── awaiting_confirmation ────────────────────────────────────────────
+        elif state == 'awaiting_confirmation':
+            selected = conv['selected_option']
+            value    = conv['followup_value']
+            clean    = body.upper().strip()
+
+            if clean in ('YES', 'Y', 'CONFIRM', 'OK'):
+                # Execute the write-back
+                if issue['issue_type'] in ('outlier', 'dtp') and selected == 4:
+                    action = _write_back_correction(issue, value)
+                elif issue['issue_type'] == 'missing' and selected == 1:
+                    action = f'Expected submission date recorded: {value}.'
+                else:
+                    action = f'Value recorded: {value}.'
+                _resolve(conn, conv['id'], ref_id, 'resolved', action)
+                return build_confirmation(ref_id, action)
+
+            elif clean in ('NO', 'N', 'CANCEL'):
+                # Reset to awaiting_followup so they can re-enter
+                conn.execute(
+                    "UPDATE conversations SET state='awaiting_followup', "
+                    "followup_value=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (conv['id'],)
+                )
+                return build_followup_prompt(issue['issue_type'], selected)
+
+            else:
+                return f'[{ref_id}] Please reply YES to confirm or NO to re-enter.'
 
     return None
 
