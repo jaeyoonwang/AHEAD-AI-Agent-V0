@@ -160,62 +160,67 @@ mono(
 sp()
 
 h2('4.1  Outlier detection')
-body('Uses the DHIS2 built-in outlier detection endpoint, which computes Z-scores for each data value against the same facility\'s historical baseline. The threshold defaults to 3.0 standard deviations and is configurable in config.py without a code change.')
+body('Computes Z-scores directly from raw data values fetched via the dataValueSets API. The AHEAD reference guide specifies 5 detection methods (SD, MAD, Median AD, Lowess, Absolute Diff); the MVP implements methods 1 (standard deviation) and 5 (absolute difference from mean). A value is flagged if EITHER method fires — matching the guide\'s "1+ methods = possible outlier" tier. All thresholds are in config.py.')
+body('Important: the DHIS2 built-in /api/outlierDetection endpoint was evaluated but not used. It requires analytics tables to be rebuilt after data entry, so newly entered values are not detectable until the next analytics run (which can be hours). The raw dataValueSets approach detects outliers in real time — within 30 seconds of submission.')
+sp()
+tbl(
+    ['Method', 'AHEAD ref', 'Threshold (config.py)', 'MVP status'],
+    [
+        ['Standard deviation (Z-score)', 'Method 1', 'OUTLIER_Z_THRESHOLD = 2.0 SD', 'Implemented'],
+        ['Mean Absolute Deviation (MAD)', 'Method 2', '> 2 MAD from mean', 'Phase 2'],
+        ['Median Absolute Deviation', 'Method 3', '> 8 Median AD from median', 'Phase 2'],
+        ['Lowess Regression', 'Method 4', '> 2× std error from curve', 'Phase 2'],
+        ['Absolute Difference from Mean', 'Method 5', 'OUTLIER_ABS_THRESHOLD = 100 doses', 'Implemented'],
+    ]
+)
+sp()
 mono(
-    'GET /api/outlierDetection\n'
-    '  ?ds=vI4ihClxSm4          # EPI - Routine vaccine delivery\n'
-    '  &ou=RFhqluFmvRG          # Ethiopia root — scans all children\n'
-    '  &startDate=2025-11-01\n'
-    '  &endDate=2026-04-30\n'
-    '  &algorithm=Z_SCORE\n'
-    '  &threshold=3.0\n'
-    '  &maxResults=100\n'
+    '# Fetch raw data values for a ~2.5-year window\n'
+    'GET /api/dataValueSets\n'
+    '  ?dataSet=vI4ihClxSm4\n'
+    '  &orgUnit=RFhqluFmvRG   # Ethiopia root — fetches all children\n'
+    '  &startDate=2023-10-01\n'
+    '  &endDate=2026-06-30    # always use last day of current month\n'
+    '  &children=true\n'
     '\n'
-    'Response: list of {\n'
-    '  dataElement, orgUnit, period, categoryOptionCombo,\n'
-    '  value, mean, stdDev, zScore, followUp\n'
-    '}'
+    '# Python: group by (orgUnit, dataElement, categoryOptionCombo)\n'
+    '# For each group with >= 3 periods:\n'
+    '#   leave-one-out mean/stdev (excludes the flagged period from baseline)\n'
+    '#   zscore = |value - loo_mean| / loo_stdev\n'
+    '#   flag if zscore >= 2.0 OR |value - loo_mean| >= 100\n'
+    '#   filter to changed (orgUnit, period) pairs when triggered by poll'
 )
 sp()
 
 h2('4.2  DTP1/DTP3 consistency')
-body('Uses DHIS2\'s validation rule engine. The EPI Aggregate Metadata Package v1.1.0 ships with a built-in validation rule: Penta3 <= Penta1. The agent triggers a fresh validation run for the target period, then reads the results. Both steps are required in DHIS2 2.40 — results are not stored persistently until the run is explicitly triggered.')
-sp()
-body('Flagging thresholds vary by data level (from AHEAD methodology):')
+body('Fetches Penta1 and Penta3 values directly from the dataValueSets API for each changed (facility, period) pair and applies the AHEAD thresholds (section 2.4). A flag is raised if either condition is met (OR logic). Thresholds vary by data level:')
 tbl(
     ['Data level', 'Absolute threshold', 'Relative threshold', 'Logic'],
     [
-        ['Monthly facility data',  '100 doses',   '>30% difference', 'Either condition triggers a flag'],
-        ['Monthly admin2 data',    '250 doses',   '>20% difference', 'Either condition'],
-        ['Annual admin2 data',     '1,000 doses', '>15% difference', 'Either condition'],
+        ['Monthly facility data',  '|Penta3 - Penta1| > 100 doses',   '|Penta3 - Penta1| / Penta1 > 30%', 'Either condition triggers flag'],
+        ['Monthly admin2 data',    '|Penta3 - Penta1| > 250 doses',   '>20% difference', 'Either'],
+        ['Annual admin2 data',     '|Penta3 - Penta1| > 1,000 doses', '>15% difference', 'Either'],
     ]
 )
 sp()
-body('For the prototype (monthly facility data): (Penta3 - Penta1) > 100 doses OR (Penta3 - Penta1) / Penta1 > 30%. In the demo scenario (Penta1=45, Penta3=80), the relative difference is 78% — flagged on the relative condition even though the absolute gap (35) is below 100.')
+body('MVP operates at monthly facility level. Admin2 thresholds are configured in config.py for Phase 2 when the agent covers aggregated admin2 data. The Penta1 value (expected_low) and Penta3 value (flagged_value) are both stored in the issue record so the agent can auto-apply "use DTP1 for both" or "use DTP3 for both" corrections without re-querying DHIS2.')
 mono(
-    '# Step 1 — trigger validation run\n'
-    'POST /api/validation\n'
-    'Body: {\n'
-    '  "organisationUnit": "RFhqluFmvRG",\n'
-    '  "startPeriod": "202604",\n'
-    '  "endPeriod":   "202604"\n'
-    '}\n'
+    'GET /api/dataValueSets\n'
+    '  ?dataSet=vI4ihClxSm4\n'
+    '  &orgUnit={facility_uid}\n'
+    '  &period={YYYYMM}\n'
     '\n'
-    '# Step 2 — read results\n'
-    'GET /api/validationResults\n'
-    '  ?ou=RFhqluFmvRG\n'
-    '  &startPeriod=202604\n'
-    '  &endPeriod=202604\n'
-    '\n'
-    'Response: list of {\n'
-    '  validationRule {id, name},\n'
-    '  orgUnit {id, name},\n'
-    '  period,\n'
-    '  leftsideValue,   # Penta3 value\n'
-    '  rightsideValue   # Penta1 value\n'
-    '}'
+    '# Python:\n'
+    'p1 = values[(PENTA1_DE_UID, UNDER_1_COC)]\n'
+    'p3 = values[(PENTA3_DE_UID, UNDER_1_COC)]\n'
+    'rel_diff = abs((p3 - p1) / p1)\n'
+    'abs_diff = abs(p3 - p1)\n'
+    'if rel_diff > 0.30 or abs_diff > 100: flag_issue()'
 )
 sp()
+
+h2('4.3  Missing report detection')
+body('Queries the complete dataset registration log to find which facilities submitted for the target period. Compares against the expected list (all level-5 org units assigned to the EPI dataset). Any facility present in expected but absent from registrations is flagged. Runs daily starting on day 10 of the following month (configurable via MISSING_REPORT_START_DAY in config.py).')
 
 h2('4.3  Missing report detection')
 body('Queries the complete dataset registration log to find which facilities submitted for the target period. Compares against the expected list (all level-5 org units assigned to the EPI dataset). Any facility present in expected but absent from registrations is flagged. Runs daily starting on day 5 of the following month.')
@@ -252,29 +257,31 @@ mono(
 sp()
 
 h2('4.5  Response option schema (from AHEAD methodology)')
-body('Every SMS notification presents numbered multiple-choice options — the same fixed response categories in the current AHEAD Excel dropdowns. These are defined per check type and never change between conversations. They are not generated by Claude; Claude only parses which number was selected and extracts any required follow-up value.')
+body('Every notification presents numbered options matching the AHEAD Excel dropdown schema (reference guide section 2.2–2.4). Options are fixed — Claude does not generate them. Claude only parses which number was selected and extracts any follow-up value. ALL options that modify DHIS2 data require a YES/NO confirmation step before being applied.')
 sp()
 tbl(
-    ['Check type', 'Option', 'Label', 'Requires follow-up?', 'Agent action'],
+    ['Check type', 'Option', 'Label', 'Flow', 'Agent action on YES'],
     [
-        ['Outlier', '1', 'Replace with 6-month avg',    'No',  'Agent calculates avg of 3mo before + 3mo after; applies immediately'],
-        ['Outlier', '2', 'Keep as-is (explain)',         'Yes — short explanation text', 'Log value unchanged with comment'],
-        ['Outlier', '3', 'Treat as zero',                'No',  'Set value to 0'],
-        ['Outlier', '4', 'Replace with specific number', 'Yes — numeric value', 'Apply provided value'],
-        ['Outlier', '5', 'Use facility doses only',      'No',  'Pull from HF column; overwrite total'],
-        ['Outlier', '6', 'Use outreach doses only',      'No',  'Pull from outreach column; overwrite total'],
-        ['DTP inconsistency', '1', 'Keep as-is (explain)',        'Yes — explanation', 'Log unchanged with comment'],
-        ['DTP inconsistency', '2', 'Set both to Penta1 value',    'No',  'Write Penta1 value to both Penta1 and Penta3'],
-        ['DTP inconsistency', '3', 'Set both to Penta3 value',    'No',  'Write Penta3 value to both'],
-        ['DTP inconsistency', '4', 'Replace with specific values', 'Yes — Penta1,Penta3 separated by comma', 'Apply both values'],
-        ['DTP inconsistency', '5', 'Other (explain)',              'Yes — explanation', 'Log comment; no data change'],
-        ['Missing report', 'SUBMIT', 'Submitting now',             'No (re-check in 1h)',  'Schedule re-check; close auto if found'],
-        ['Missing report', '1', 'Replace with 6-month avg',        'No',  'Impute avg for all vaccines'],
-        ['Missing report', '2', 'Replace with zero',               'No',  'Write 0 for all vaccines (closed/no service)'],
-        ['Missing report', '3', 'Replace with specific values',     'Yes — BCG,P1,P3,MR1 comma-separated', 'Apply per-vaccine values'],
-        ['Missing report', '4', 'Remove from analysis',            'No',  'Log as excluded; no data written'],
+        ['Outlier', '1', 'Replace with 6-month average',  'Auto-confirm (2 turns)',   'Compute avg of 3 periods before + 3 after; write to DHIS2'],
+        ['Outlier', '2', 'Keep as-is (no action)',         'Immediate resolution',    'Mark ignored; no DHIS2 write'],
+        ['Outlier', '3', 'Set to zero',                    'Auto-confirm (2 turns)',   'Write 0 to DHIS2'],
+        ['Outlier', '4', 'Replace with specific value',    'Followup + confirm (3 turns)', 'Write user-provided value to DHIS2'],
+        ['Outlier', '5', 'At health facility doses only',  'Immediate resolution',    'Noted for HQ; no auto write-back in MVP'],
+        ['Outlier', '6', 'Outreach doses only',            'Immediate resolution',    'Noted for HQ; no auto write-back in MVP'],
+        ['DTP', '1', 'Keep as-is (no action)',             'Immediate resolution',    'Mark ignored; no DHIS2 write'],
+        ['DTP', '2', 'Use DTP1 value for both',            'Auto-confirm (2 turns)',   'Write Penta3 = Penta1 value to DHIS2'],
+        ['DTP', '3', 'Use DTP3 value for both',            'Auto-confirm (2 turns)',   'Write Penta1 = Penta3 value to DHIS2'],
+        ['DTP', '4', 'Replace with specific value',        'Followup + confirm (3 turns)', 'Write user-provided value for Penta3'],
+        ['DTP', '5', 'Other reason',                       'Immediate resolution',    'Noted; no DHIS2 write'],
+        ['Missing', 'SUBMIT', 'Already submitted',         'Immediate resolution',    'Acknowledge; close issue'],
+        ['Missing', '1', 'Will submit by [date]',          'Followup + confirm (3 turns)', 'Record expected date'],
+        ['Missing', '2', 'Data cannot be recovered',       'Immediate resolution',    'Flagged for HQ imputation (6-month avg)'],
+        ['Missing', '3', 'Facility closed / no service',   'Auto-confirm (2 turns)',   'Record closure; flagged for HQ zero imputation'],
+        ['Missing', '4', 'Other reason',                   'Immediate resolution',    'Noted; no DHIS2 write'],
     ]
 )
+sp()
+body('Turn counts: "Immediate" = 1 reply closes the issue. "Auto-confirm" = agent computes the value, shows it in a YES/NO prompt. "Followup + confirm" = agent asks for a value, user provides it, then YES/NO confirms before writing. On NO at any confirmation step, the original option list is re-sent.')
 sp()
 
 h2('4.7  Deduplication')
@@ -387,32 +394,35 @@ mono(
 )
 sp()
 tbl(
-    ['Status', 'Trigger', 'Agent action'],
+    ['Conversation state', 'Trigger', 'Agent action'],
     [
-        ['notified',
-         'Issue first detected by DQ engine',
-         'Send numbered-option SMS to facility contact; record last_contact_at'],
-        ['notified → retry',
-         'No inbound reply within 24h; retry_count < 3',
-         'Re-send abbreviated option-list SMS; increment retry_count'],
-        ['notified → escalated',
-         'retry_count reaches 3 (72h elapsed)',
-         'Send summary SMS to next-level contact; increment cascade_level'],
-        ['notified → awaiting_followup',
-         'Inbound option number that requires additional input (e.g. option 4 = specific number)',
-         'Claude extracts option; agent sends follow-up question; record selected_option'],
-        ['notified → resolved',
-         'Inbound option number that needs no additional input (e.g. option 1 = 6-month avg)',
-         'Apply action immediately (compute avg / write zero / etc.); write to DHIS2; send resolution SMS; close'],
-        ['awaiting_followup → resolved',
-         'Inbound follow-up value (specific number, explanation text, comma-separated values)',
-         'Claude extracts value; apply to DHIS2 if needed; send resolution SMS; close issue'],
-        ['notified → awaiting_followup (SUBMIT)',
-         'Inbound SUBMIT on missing report',
-         'Schedule 1-hour re-check; send acknowledgement SMS'],
-        ['awaiting_followup (SUBMIT) → resolved',
-         '1-hour re-check finds the registration',
-         'Auto-close; send confirmation SMS'],
+        ['awaiting_option',
+         'Issue first detected; alert sent',
+         'Send numbered-option WhatsApp/SMS to facility contact'],
+        ['awaiting_option → awaiting_option (retry)',
+         'No reply in 24h; retry_count < MAX_RETRIES (default 3)',
+         'Re-send original alert; increment retry_count'],
+        ['awaiting_option → escalated',
+         'retry_count exhausted; ESCALATION_DAYS threshold passed',
+         'Send escalation notice to next cascade level (woreda → zone → region)'],
+        ['awaiting_option → awaiting_followup',
+         'User replies with option that needs a value (outlier 4, DTP 4, missing 1)',
+         'Claude parses option; agent sends follow-up value prompt'],
+        ['awaiting_option → awaiting_confirmation',
+         'User replies with auto-computed option (outlier 1/3, DTP 2/3, missing 3)',
+         'Agent computes value (6-month avg or copies other field); sends YES/NO confirmation'],
+        ['awaiting_option → resolved',
+         'User replies with option that resolves immediately (outlier 2/5/6, DTP 1/5, missing SUBMIT/2/4)',
+         'Issue closed; confirmation SMS sent; no DHIS2 write for keep-as-is options'],
+        ['awaiting_followup → awaiting_confirmation',
+         'User provides a value (number or date)',
+         'Claude extracts value; agent sends YES/NO confirmation showing exactly what will change'],
+        ['awaiting_confirmation → resolved',
+         'User replies YES',
+         'Agent writes correction to DHIS2 via POST /api/dataValues; sends confirmation; issue closed'],
+        ['awaiting_confirmation → awaiting_option',
+         'User replies NO',
+         'Original alert re-sent; user can choose a different option'],
     ]
 )
 sp()
