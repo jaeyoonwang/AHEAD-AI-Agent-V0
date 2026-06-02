@@ -153,7 +153,7 @@ def webhook_sms():
     Twilio sends form-encoded POST with From and Body fields.
     Responds with TwiML (empty <Response> if no reply needed).
     """
-    from_phone = request.form.get('From', '')
+    from_phone = request.form.get('From', '').replace('whatsapp:', '')
     body       = request.form.get('Body', '').strip()
 
     print(f'[WEBHOOK] inbound from {from_phone[:7]}***: {body[:60]}')
@@ -270,10 +270,53 @@ def issue_log():
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def _start_ngrok(port=5001):
+    """
+    Start an ngrok tunnel so Twilio can reach the local webhook.
+    Uses the ngrok binary (~/bin/ngrok or PATH); queries the local
+    ngrok API to retrieve and print the public URL.
+    """
+    import subprocess, time, urllib.request as _ur, json as _json
+
+    # Find the ngrok binary (prefer ~/bin/ngrok installed by setup)
+    ngrok_bin = str(pathlib.Path.home() / 'bin' / 'ngrok')
+    if not pathlib.Path(ngrok_bin).exists():
+        ngrok_bin = 'ngrok'
+
+    token = os.environ.get('NGROK_AUTHTOKEN', '')
+    if token:
+        subprocess.run([ngrok_bin, 'config', 'add-authtoken', token],
+                       capture_output=True)
+
+    proc = subprocess.Popen(
+        [ngrok_bin, 'http', str(port)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+
+    time.sleep(2)  # wait for ngrok to initialise
+
+    try:
+        with _ur.urlopen('http://localhost:4040/api/tunnels', timeout=5) as r:
+            tunnels = _json.loads(r.read()).get('tunnels', [])
+        url = next((t['public_url'] for t in tunnels if t.get('proto') == 'https'), None)
+        if url:
+            print(f'[NGROK] public URL: {url}')
+            print(f'[NGROK] *** set Twilio webhook → {url}/webhook/sms ***')
+        else:
+            print('[NGROK] tunnel started but could not retrieve URL — check http://localhost:4040')
+    except Exception as e:
+        print(f'[NGROK] could not query tunnel URL: {e}')
+
+    return proc
+
+
 if __name__ == '__main__':
     _startup()
-    _sched = _start_scheduler()
+    _sched  = _start_scheduler()
+    _ngrok  = _start_ngrok()
     try:
         app.run(host='0.0.0.0', port=5001, debug=False, use_reloader=False)
     finally:
         _sched.shutdown()
+        if _ngrok:
+            _ngrok.terminate()

@@ -7,3 +7,4 @@ apscheduler>=3.10
 requests>=2.31
 anthropic>=0.28
 twilio>=9.0
+pyngrok>=7.0

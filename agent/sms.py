@@ -28,9 +28,14 @@ def _load_env():
 
 _load_env()
 
-ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
-AUTH_TOKEN  = os.environ.get('TWILIO_AUTH_TOKEN', '')
-FROM_PHONE  = os.environ.get('TWILIO_PHONE', '')
+ACCOUNT_SID  = os.environ.get('TWILIO_ACCOUNT_SID', '')
+AUTH_TOKEN   = os.environ.get('TWILIO_AUTH_TOKEN', '')
+FROM_PHONE   = os.environ.get('TWILIO_PHONE', '')
+
+# WhatsApp sandbox mode — set TWILIO_WHATSAPP=true in .env to route via WhatsApp.
+# Sandbox sender is always +14155238886; recipients must opt in at wa.me/14155238886.
+_WHATSAPP    = os.environ.get('TWILIO_WHATSAPP', '').lower() == 'true'
+_WA_SANDBOX  = 'whatsapp:+14155238886'
 
 _client = None
 
@@ -44,9 +49,16 @@ def _get_client():
 
 
 def send_sms(to_phone, body):
-    """Send an outbound SMS. Returns the Twilio message SID."""
-    msg = _get_client().messages.create(body=body, from_=FROM_PHONE, to=to_phone)
-    print(f'[SMS] → {to_phone[:7]}*** | {len(body)} chars | SID={msg.sid}')
+    """Send an outbound message (SMS or WhatsApp depending on TWILIO_WHATSAPP env var)."""
+    if _WHATSAPP:
+        from_addr = _WA_SANDBOX
+        to_addr   = f'whatsapp:{to_phone}'
+    else:
+        from_addr = FROM_PHONE
+        to_addr   = to_phone
+    msg = _get_client().messages.create(body=body, from_=from_addr, to=to_addr)
+    channel = 'WA' if _WHATSAPP else 'SMS'
+    print(f'[{channel}] → {to_phone[:7]}*** | {len(body)} chars | SID={msg.sid}')
     return msg.sid
 
 
@@ -70,7 +82,7 @@ def build_outlier_message(ref_id, facility_name, period, antigen,
                           value, expected_low, expected_high):
     """6-option outlier alert (AHEAD Excel dropdown schema)."""
     if expected_low is not None and expected_high is not None:
-        exp = f'{int(expected_low)}–{int(expected_high)}'
+        exp = f'{max(0, int(expected_low))}–{int(expected_high)}'
     else:
         exp = 'N/A'
     return (

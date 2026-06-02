@@ -63,7 +63,11 @@ def check_outliers(changed_pairs=None):
     Returns list of newly created ref_ids.
     """
     start = (date.today() - timedelta(days=900)).strftime('%Y-%m-%d')  # ~2.5 years
-    end   = date.today().strftime('%Y-%m-%d')
+    # Use last day of current month — DHIS2 excludes monthly periods whose end
+    # date is after endDate, so using today would cut off the current period.
+    _today = date.today()
+    _next  = (_today.replace(day=28) + timedelta(days=4)).replace(day=1)
+    end    = (_next - timedelta(days=1)).strftime('%Y-%m-%d')
 
     try:
         outliers = dc.get_outliers(
@@ -100,15 +104,21 @@ def check_outliers(changed_pairs=None):
             if _open_issue_exists(conn, ou_uid, period, de_name, 'outlier'):
                 continue
 
+            # Look up facility name from cached hierarchy (raw API doesn't return ouName)
+            hier = conn.execute(
+                'SELECT facility_name FROM org_unit_hierarchy WHERE facility_uid=?', (ou_uid,)
+            ).fetchone()
+            fac_name = hier['facility_name'] if hier else ou_uid
+
             expected_low  = round(mean - cfg.OUTLIER_Z_THRESHOLD * std_dev, 1) if mean and std_dev else None
             expected_high = round(mean + cfg.OUTLIER_Z_THRESHOLD * std_dev, 1) if mean and std_dev else None
 
             ref = _create_issue(
-                conn, 'outlier', ou_uid, o.get('ouName', ou_uid), period,
+                conn, 'outlier', ou_uid, fac_name, period,
                 de_name, value, expected_low, expected_high
             )
             new_refs.append(ref)
-            print(f'[DQ] outlier: {ref}  {o.get("ouName")} {period} {de_name}={value} (mean={mean:.1f})')
+            print(f'[DQ] outlier: {ref}  {fac_name} {period} {de_name}={value} (mean={mean:.1f})')
 
     return new_refs
 

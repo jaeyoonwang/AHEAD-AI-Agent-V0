@@ -63,7 +63,7 @@ def build_contacts(uid_map):
     return [
         {
             'dhis2_username': 'eth_facility_01',
-            'phone':          '+251911000001',   # ← replace with Almaz's real number
+            'phone':          '+16673041318',
             'email':          'almaz.tadesse@example.et',
             'covers_uid':     fac_uid,
             'covers_name':    'Addi Arekay Health Center',

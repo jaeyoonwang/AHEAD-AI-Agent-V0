@@ -60,40 +60,98 @@ def get_changes_since(dataset_uid, root_ou_uid, since_ts):
     """
     Return dataValues modified after since_ts (ISO 8601 string).
 
-    Used by the 30-second poller: if this returns anything, a DQ scan fires.
+    Uses /dataValueSets (not /dataValues) — the sets endpoint supports the
+    lastUpdated filter; the singular endpoint does not.
     Returns a list of dicts with keys: dataElement, period, orgUnit, value.
     """
-    data = _get('/dataValues', params={
+    data = _get('/dataValueSets', params={
         'dataSet':     dataset_uid,
         'orgUnit':     root_ou_uid,
         'children':    'true',
         'lastUpdated': since_ts,
-        'fields':      'dataElement,period,orgUnit,value,lastUpdated',
     })
     return data.get('dataValues', [])
 
 
-# ── Outlier detection ─────────────────────────────────────────────────────────
+# ── Outlier detection (raw data Z-score — no analytics required) ──────────────
 
 def get_outliers(dataset_uid, root_ou_uid, start_date, end_date,
-                 z_threshold=3.0, max_results=500):
+                 z_threshold=3.0, min_periods=3):
     """
-    Call the DHIS2 built-in Z-score outlier detection API.
+    Compute Z-score outliers directly from raw data values.
 
-    Returns a list of dicts, each with:
-      de (data element UID), ou (org unit UID), ouName, pe (period YYYYMM),
-      value, mean, stdDev, zscore, absDev
+    Does NOT use the /api/outlierDetection analytics endpoint (which requires
+    analytics tables to be rebuilt and special permissions). Instead fetches all
+    raw data values and computes per-(facility, data_element, coc) statistics.
+
+    Returns a list of dicts with keys:
+      ou, de, coc, pe, value, mean, stdDev, zscore, absDev
     """
-    data = _get('/outlierDetection', params={
-        'ds':         dataset_uid,
-        'ou':         root_ou_uid,
-        'startDate':  start_date,
-        'endDate':    end_date,
-        'algorithm':  'Z_SCORE',
-        'threshold':  z_threshold,
-        'maxResults': max_results,
+    import statistics as _stats
+    from collections import defaultdict
+
+    data = _get('/dataValueSets', params={
+        'dataSet':   dataset_uid,
+        'orgUnit':   root_ou_uid,
+        'children':  'true',
+        'startDate': start_date,
+        'endDate':   end_date,
     })
-    return data.get('outlierValues', [])
+    raw = data.get('dataValues', [])
+
+    # Group by (org unit, data element, category option combo)
+    groups = defaultdict(list)
+    for dv in raw:
+        try:
+            groups[(dv['orgUnit'], dv['dataElement'], dv['categoryOptionCombo'])].append(
+                (dv['period'], float(dv['value']))
+            )
+        except (ValueError, KeyError):
+            pass
+
+    outliers = []
+    for (ou, de, coc), period_vals in groups.items():
+        if len(period_vals) < min_periods:
+            continue
+
+        vals = [v for _, v in period_vals]
+        mean = _stats.mean(vals)
+        try:
+            std = _stats.stdev(vals)
+        except _stats.StatisticsError:
+            continue
+        if std == 0:
+            continue
+
+        for period, value in period_vals:
+            # Compute leave-one-out stats (exclude the candidate value itself)
+            # so the reported mean/stdDev reflects the true historical baseline.
+            other_vals = [v for p, v in period_vals if p != period]
+            if len(other_vals) < min_periods:
+                continue
+            loo_mean = _stats.mean(other_vals)
+            try:
+                loo_std = _stats.stdev(other_vals)
+            except _stats.StatisticsError:
+                continue
+            if loo_std == 0:
+                continue
+
+            zscore = abs(value - loo_mean) / loo_std
+            if zscore >= z_threshold:
+                outliers.append({
+                    'ou':     ou,
+                    'de':     de,
+                    'coc':    coc,
+                    'pe':     period,
+                    'value':  value,
+                    'mean':   round(loo_mean, 2),
+                    'stdDev': round(loo_std, 2),
+                    'zscore': round(zscore, 2),
+                    'absDev': round(abs(value - loo_mean), 2),
+                })
+
+    return outliers
 
 
 # ── Data values (for DTP consistency check) ───────────────────────────────────
@@ -155,10 +213,10 @@ def post_data_value(data_element_uid, org_unit_uid, period,
                     category_option_combo_uid, value, comment=None):
     """
     Write a single corrected data value back to DHIS2.
-    value should be a number or string; it will be cast to str for the API.
-    Returns the DHIS2 import summary dict.
+    Uses query parameters — POST /api/dataValues does not accept a JSON body.
+    Returns the HTTP response object (201 on success).
     """
-    payload = {
+    params = {
         'de':    data_element_uid,
         'ou':    org_unit_uid,
         'pe':    period,
@@ -166,8 +224,10 @@ def post_data_value(data_element_uid, org_unit_uid, period,
         'value': str(value),
     }
     if comment:
-        payload['comment'] = comment
-    return _post('/dataValues', payload)
+        params['comment'] = comment
+    r = _sess.post(f'{BASE}/dataValues', params=params, timeout=15)
+    r.raise_for_status()
+    return r
 
 
 def health_check():
