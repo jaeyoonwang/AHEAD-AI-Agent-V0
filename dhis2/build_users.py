@@ -40,7 +40,8 @@ AUTH     = base64.b64encode(_creds.encode()).decode()
 BASE     = os.environ.get('DHIS2_BASE_URL', 'http://localhost:8080/api')
 HEADERS  = {'Authorization': f'Basic {AUTH}', 'Content-Type': 'application/json'}
 
-PASSWORD = os.environ.get('DHIS2_USER_PASSWORD', '')
+PASSWORD       = os.environ.get('DHIS2_USER_PASSWORD', '')
+AGENT_PASSWORD = os.environ.get('AGENT_PASS', PASSWORD)  # falls back to shared password
 
 def get(path):
     req = urllib.request.Request(f'{BASE}{path}',
@@ -147,6 +148,26 @@ for u in users:
     else:
         created.append(u['username'])
 
+# ── Agent service account ─────────────────────────────────────────────────────
+
+print('\n[Step 3] Creating agent_service account')
+
+ok, resp = post('/users', {
+    'username':  'agent_service',
+    'password':  AGENT_PASSWORD,
+    'firstName': 'AHEAD',
+    'surname':   'Agent',
+    'userRoles': [{'id': entry_role_uid}],
+    'organisationUnits':         [{'id': eth_uid}],
+    'dataViewOrganisationUnits': [{'id': eth_uid}],
+})
+agent_uid = resp.get('response', resp).get('uid', '?')
+print(f'  {"OK" if ok else "ERR"}  agent_service → {agent_uid}')
+if not ok:
+    print(f'       {resp}')
+
+# ── Save role UIDs into uid_map ───────────────────────────────────────────────
+
 # Save role UIDs into uid_map
 uid_map['user_roles'] = {
     'entry':  {'uid': entry_role_uid,  'name': 'EPI Data Entry'},
@@ -157,7 +178,7 @@ with open(_UID_MAP, 'w') as f:
 
 print('\n' + '=' * 60)
 print('Phase 4 COMPLETE')
-print(f'  Roles created: 2    Users created: {len(created)}')
+print(f'  Roles created: 2    Users created: {len(created) + 1} (including agent_service)')
 print()
 print(f'  {"Username":<22} {"Password":<16} Scope')
 print(f'  {"-"*58}')

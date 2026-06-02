@@ -28,6 +28,9 @@ dhis.conf
 ethiopia_uid_map.json
 data_injection_log.json
 
+# Agent database — recreated on startup
+agent/agent.db
+
 # Temp files
 ~$*
 *.tmp

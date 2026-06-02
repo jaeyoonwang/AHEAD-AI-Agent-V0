@@ -36,7 +36,14 @@ dhis2-prototype/
 │   ├── generate_ux_doc.py      Regenerates UX Workflow docx
 │   └── generate_doc.py         Regenerates MVP Architecture docx
 │
-└── agent/                    AI agent code (to be implemented)
+└── agent/                    AI agent
+    ├── app.py              Entry point — Flask server + APScheduler jobs
+    ├── db.py               SQLite schema and helpers (contacts, issues, conversations)
+    ├── dhis2_client.py     DHIS2 REST API wrapper (no logic)
+    ├── dq_engine.py        DQ logic: outlier / DTP / missing checks
+    ├── sms.py              Twilio wrapper + numbered message templates
+    ├── state_machine.py    Conversation state + Claude API parsing
+    └── seed_contacts.py    One-time script to populate the contact registry
 ```
 
 ---
@@ -44,8 +51,9 @@ dhis2-prototype/
 ## Prerequisites
 
 - Docker Desktop (running)
-- Python 3.x (standard library only for setup scripts; `python-docx` for doc generators)
+- Python 3.x with packages: `pip3 install -r requirements.txt`
 - ~4 GB disk space
+- Twilio account (for SMS) + Claude API key (for parsing replies)
 
 ---
 
@@ -125,6 +133,53 @@ Open [http://localhost:8080](http://localhost:8080) and log in with one of the a
 | `eth_zone_01` | `DHIS2_USER_PASSWORD` | North Gondar Zone (view only) |
 | `eth_regional_01` | `DHIS2_USER_PASSWORD` | Amhara Region (view only) |
 | `eth_national_01` | `DHIS2_USER_PASSWORD` | Ethiopia national (view only) |
+
+---
+
+## Running the agent
+
+### 1. Add agent credentials to `.env`
+
+After the initial `.env` setup (see Setup above), add:
+
+```
+AGENT_USER=agent_service
+AGENT_PASS=Ethiopia@2024        # must match DHIS2_USER_PASSWORD used in build_users.py
+CLAUDE_API_KEY=sk-ant-...       # from console.anthropic.com
+TWILIO_ACCOUNT_SID=ACxxxx
+TWILIO_AUTH_TOKEN=xxxx
+TWILIO_PHONE=+1xxxxxxxxxx       # your Twilio number in E.164 format
+```
+
+### 2. Seed the contact registry
+
+Edit `agent/seed_contacts.py` — update the phone numbers in `build_contacts()` to real numbers, then:
+
+```bash
+python3 agent/seed_contacts.py
+```
+
+### 3. Start the agent
+
+```bash
+python3 agent/app.py
+```
+
+The agent starts at [http://localhost:5001](http://localhost:5001). On startup it:
+- Creates `agent/agent.db` (SQLite) with all tables
+- Seeds the org-unit hierarchy from `dhis2/ethiopia_uid_map.json`
+- Confirms DHIS2 is reachable
+- Starts the 30-second poll loop
+
+### 4. Expose the SMS webhook (for real SMS)
+
+For Twilio to reach your local machine, use [ngrok](https://ngrok.com):
+
+```bash
+ngrok http 5001
+```
+
+Then set your Twilio webhook URL to `https://<ngrok-id>.ngrok.io/webhook/sms`.
 
 ---
 

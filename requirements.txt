@@ -1,1 +1,9 @@
-python-docx>=1.1  # docs/generate_*.py only — all other scripts use stdlib only
+# Documentation generators (docs/generate_*.py)
+python-docx>=1.1
+
+# AI agent (agent/)
+flask>=3.0
+apscheduler>=3.10
+requests>=2.31
+anthropic>=0.28
+twilio>=9.0
