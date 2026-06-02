@@ -114,19 +114,24 @@ sp()
 
 # ── 2. Notification Triggers ──────────────────────────────────────────────────
 h1('2. Notification Triggers')
+body('The MVP implements two of the five AHEAD detection methods: SD-based outlier detection (Method 1, AHEAD Table 1) and absolute difference checks (Method 5). DQ thresholds are aligned with AHEAD operational guidance: outlier detection fires when a value exceeds 2.0 standard deviations from the facility historical baseline OR differs by more than 100 doses in absolute terms. DTP1/DTP3 inconsistency fires when Penta3 exceeds Penta1 by more than 30% relative OR more than 100 doses absolute.')
+sp()
 tbl(
-    ['Issue type', 'What causes it', 'Detection timing', 'Who is notified first'],
+    ['Issue type', 'What causes it', 'Detection threshold', 'Detection timing', 'Who is notified first'],
     [
         ['Statistical outlier',
-         'A submitted value is flagged by DHIS2 outlier detection (Z-score >= 3.0 vs. facility historical baseline)',
+         'A submitted value deviates from the facility historical baseline',
+         'Z-score > 2.0 SD (AHEAD Table 1 operational threshold) OR absolute diff > 100 doses',
          'Within ~30 seconds of form submission',
          'Facility worker'],
         ['DTP1/DTP3 inconsistency',
          'Penta3 doses exceed Penta1 doses for same facility-period (biologically implausible)',
+         '> 30% relative gap OR > 100 absolute dose gap (monthly facility threshold)',
          'Within ~30 seconds of form submission',
          'Facility worker'],
         ['Missing report',
          'Facility has no completed dataset registration by day 5 of the following month',
+         'No completeDataSetRegistration record in DHIS2 for the period',
          'Daily at 8am, starting day 5 of following month',
          'Facility worker'],
     ]
@@ -135,84 +140,149 @@ sp()
 
 # ── 3. Message Templates ──────────────────────────────────────────────────────
 h1('3. SMS Message Templates')
-body('All outbound notifications present numbered multiple-choice options — the same response categories used in the AHEAD Excel dropdown workflow. The worker replies with a number (1, 2, 3 etc.). Options requiring additional input (a specific value, or a brief explanation) trigger a short follow-up question. The numbered selection itself is the decision — there is no separate YES/NO confirmation step.')
+body('All outbound notifications present numbered multiple-choice options — the same response categories used in the AHEAD reference guide (sections 2.2–2.4). The worker replies with a number (1, 2, 3 etc.). Options that modify DHIS2 data require a YES/NO confirmation before the write-back is applied. Options requiring additional input (a specific value or a brief explanation) trigger a short follow-up question before the confirmation step.')
 sp()
 
 h2('3.1  Outlier — initial notification (6 options)')
-body('Sent when a data value is flagged by outlier detection. Options 2 and 4 require a follow-up reply.')
+body('Sent when a data value is flagged by outlier detection. Aligned with AHEAD guide section 2.2. Options 1, 3, and 4 write data back to DHIS2 and require a YES/NO confirmation. Options 5 and 6 are noted for HQ manual adjustment with no auto write-back. Option 2 resolves immediately with no data change.')
 mono(
-    '[DQ-AX42] Addi Arekay HC, Jun 2026\n'
-    'BCG under-1: 970 (normal ~97, flagged)\n'
+    'AHEAD DQ Alert [DQ-4XDF]\n'
+    'Addi Arekay Health Center — Jun 2026\n'
+    'BCG: 970 doses (expected 79–114)\n'
     'Reply with option number:\n'
-    '1. Replace with 6-month avg\n'
-    '2. Keep as-is (explain)\n'
-    '3. Treat as zero\n'
-    '4. Replace with specific number\n'
-    '5. Use facility doses only\n'
-    '6. Use outreach doses only'
+    '1. Replace with 6-month average\n'
+    '2. Keep as-is (no action)\n'
+    '3. Set to zero\n'
+    '4. Replace with specific value\n'
+    '5. At health facility doses only\n'
+    '6. Outreach doses only'
 )
 sp()
 
-h2('3.2  Outlier — follow-up for option 2 (keep as-is)')
+h2('3.2  Outlier — follow-up for option 4 (specific value)')
+body('Agent asks for the corrected value before proceeding to the YES/NO confirmation step.')
 mono(
-    '[DQ-AX42] Option 2: keep as-is.\n'
-    'Please reply with a brief explanation.\n'
-    '(e.g., "PIRI campaign in May" or "outreach week")'
+    '[DQ-4XDF] Please reply with the correct value\n'
+    '(numbers only, e.g. 97).'
 )
 sp()
 
-h2('3.3  Outlier — follow-up for option 4 (specific number)')
+h2('3.3  Outlier — YES/NO confirmation before DHIS2 write-back')
+body('Shown before any data modification. The confirmation message states exactly what will change. If the user replies NO, the original alert is re-sent and they can choose a different option.')
 mono(
-    '[DQ-AX42] Option 4 selected.\n'
-    'Reply with the correct BCG under-1 value.'
+    '[DQ-4XDF] Confirm change:\n'
+    'BCG <1yr — Addi Arekay Health Center (Jun 2026)\n'
+    '970 -> 97\n'
+    'Reply YES to update DHIS2 or NO to re-enter.'
+)
+sp()
+body('For option 1 (6-month average), the agent auto-computes the average of 3 periods before and 3 after the flagged period and shows the computed value in the confirmation:')
+mono(
+    '[DQ-4XDF] Confirm: Replace with 6-month average (96)\n'
+    'Addi Arekay Health Center (Jun 2026)\n'
+    'Reply YES to update DHIS2 or NO to choose again.'
+)
+sp()
+body('For option 3 (set to zero), the confirmation shows the explicit 0 value:')
+mono(
+    '[DQ-4XDF] Confirm: Set BCG <1yr to 0\n'
+    'Addi Arekay Health Center (Jun 2026)\n'
+    'Reply YES to update DHIS2 or NO to choose again.'
 )
 sp()
 
-h2('3.4  DTP1/DTP3 inconsistency — initial notification (5 options)')
-body('Sent when Penta3 > Penta1. Relative difference is shown so the worker can immediately see the scale of the gap. Options 1, 4, and 5 require a follow-up reply.')
+h2('3.4  Outlier — resolution confirmation')
+body('Sent after the user replies YES and the write-back is applied.')
 mono(
-    '[DQ-BK19] Addi Arekay HC, Jun 2026\n'
+    '[DQ-4XDF] Noted. Value corrected to 97 in DHIS2. Thank you.'
+)
+sp()
+body('For option 1 (6-month average):')
+mono(
+    '[DQ-4XDF] Noted. Replaced with 6-month average (96) in DHIS2. Thank you.'
+)
+sp()
+body('For options 5 and 6 (no auto write-back), no confirmation step is triggered — the agent closes with a note:')
+mono(
+    '[DQ-4XDF] Noted. Flagged for HQ manual adjustment\n'
+    '(at health facility doses only). Issue logged. Thank you.'
+)
+sp()
+
+h2('3.5  DTP1/DTP3 inconsistency — initial notification (5 options)')
+body('Sent when Penta3 > Penta1. Aligned with AHEAD guide section 2.3. Options 2 and 3 set DTP3 = DTP1 or DTP1 = DTP3 respectively; option 4 uses a user-supplied value. All three require YES/NO confirmation. Option 1 resolves immediately. Option 5 is noted with no auto write-back.')
+mono(
+    'AHEAD DQ Alert [DQ-BK19]\n'
+    'Addi Arekay Health Center — Jun 2026\n'
     'Penta1 under-1: 60 | Penta3 under-1: 90\n'
     'Penta3 exceeds Penta1 by 50%.\n'
     'Reply with option number:\n'
-    '1. Keep as-is (explain)\n'
-    '2. Set both to Penta1 value (60)\n'
-    '3. Set both to Penta3 value (90)\n'
-    '4. Replace with specific values\n'
-    '5. Other (explain)'
+    '1. Keep as-is\n'
+    '2. Use DTP1 value for both\n'
+    '3. Use DTP3 value for both\n'
+    '4. Replace with specific value\n'
+    '5. Other'
 )
 sp()
 
-h2('3.5  DTP — follow-up for options 1 and 5 (explain)')
+h2('3.6  DTP — follow-up for option 4 (specific value)')
 mono(
-    '[DQ-BK19] Option 1: keep as-is.\n'
-    'Please reply with a brief explanation.'
+    '[DQ-BK19] Please reply with the correct value\n'
+    '(numbers only, e.g. 72).'
 )
 sp()
 
-h2('3.6  DTP — follow-up for option 4 (specific values)')
+h2('3.7  DTP — YES/NO confirmation before DHIS2 write-back')
+body('Examples for options 2, 3, and 4 respectively:')
 mono(
-    '[DQ-BK19] Option 4 selected.\n'
-    'Reply with correct Penta1 and Penta3 under-1\n'
-    'separated by comma. (e.g., 45,42)'
+    '[DQ-BK19] Confirm change:\n'
+    'Penta3 <1yr — Addi Arekay Health Center (Jun 2026)\n'
+    '90 -> 60 (set to DTP1 value)\n'
+    'Reply YES to update DHIS2 or NO to choose again.'
+)
+sp()
+mono(
+    '[DQ-BK19] Confirm change:\n'
+    'Penta1 <1yr — Addi Arekay Health Center (Jun 2026)\n'
+    '60 -> 90 (set to DTP3 value)\n'
+    'Reply YES to update DHIS2 or NO to choose again.'
+)
+sp()
+mono(
+    '[DQ-BK19] Confirm change:\n'
+    'Penta3 <1yr — Addi Arekay Health Center (Jun 2026)\n'
+    '90 -> 72\n'
+    'Reply YES to update DHIS2 or NO to re-enter.'
 )
 sp()
 
-h2('3.7  Missing report — initial notification (SUBMIT + 4 options)')
-body('Recovery before imputation: the SUBMIT option is presented first so the worker can locate and submit the missing report. Cleaning options are a fallback only if recovery fails. This is explicit in the AHEAD methodology: "the first step is always recovery, not imputation."')
+h2('3.8  DTP — resolution confirmation')
 mono(
-    '[DQ-MN33] Addi Arekay HC\n'
+    '[DQ-BK19] Noted. Value corrected to 60 in DHIS2. Thank you.'
+)
+sp()
+body('For option 5 (no auto write-back):')
+mono(
+    '[DQ-BK19] Noted. Flagged for HQ review. Issue logged. Thank you.'
+)
+sp()
+
+h2('3.9  Missing report — initial notification (SUBMIT + 4 options)')
+body('Aligned with AHEAD guide section 2.4. Recovery before imputation: the SUBMIT option is presented first so the worker can locate and submit the missing report. Cleaning options are a fallback only if recovery fails. Options 1, 2, 3, and 4 do not write data automatically — options 2 and 3 are flagged for HQ imputation; option 1 is noted; option 4 is noted. SUBMIT acknowledges and closes the issue once the submission appears.')
+mono(
+    'AHEAD DQ Alert [DQ-MN33]\n'
+    'Addi Arekay Health Center\n'
     'No completed EPI report for May 2026.\n'
     'Can you submit the report? Reply SUBMIT.\n'
-    'Or if unavailable, select:\n'
-    '1. Replace with 6-month avg\n'
-    '2. Replace with zero (closed/no service)\n'
-    '3. Replace with specific values\n'
-    '4. Remove from analysis'
+    'Or if data is unavailable, select:\n'
+    '1. Will submit by [date]\n'
+    '2. Data cannot be recovered\n'
+    '3. Facility closed / no service that month\n'
+    '4. Other'
 )
 sp()
 
-h2('3.8  Missing report — follow-up for SUBMIT')
+h2('3.10  Missing report — follow-up for SUBMIT')
 mono(
     '[DQ-MN33] Thanks — checking DHIS2 within the hour.\n'
     'Issue will close automatically once your\n'
@@ -220,43 +290,57 @@ mono(
 )
 sp()
 
-h2('3.9  Missing report — follow-up for option 3 (specific values)')
+h2('3.11  Missing report — follow-up for option 1 (will submit by date)')
+body('Agent asks for the target date before acknowledging.')
 mono(
-    '[DQ-MN33] Option 3 selected.\n'
-    'Reply with BCG, Penta1, Penta3, MR1 under-1\n'
-    'separated by commas. (e.g., 38,34,28,33)'
+    '[DQ-MN33] Please reply with the date you will submit\n'
+    '(e.g., 2026-06-10).'
+)
+sp()
+body('After the user provides the date, agent acknowledges and logs:')
+mono(
+    '[DQ-MN33] Noted. Submission expected by 2026-06-10.\n'
+    'Issue logged for follow-up. Thank you.'
 )
 sp()
 
-h2('3.10  Resolution confirmation')
-body('Sent after any option is applied. No YES/NO step — the numbered reply is the decision.')
+h2('3.12  Missing report — options 2, 3, and 4 (no auto write-back)')
+body('Options 2 and 3 are flagged for HQ zero imputation. Option 4 is noted. None trigger a DHIS2 write-back.')
 mono(
-    '[DQ-AX42] Done.\n'
-    'BCG under-1 at Addi Arekay HC updated to\n'
-    '6-month avg (96). Decision logged. Issue closed.'
+    '[DQ-MN33] Noted. Data cannot be recovered — flagged\n'
+    'for HQ imputation. Issue logged. Thank you.'
+)
+sp()
+mono(
+    '[DQ-MN33] Noted. Facility closed / no service that month\n'
+    '— flagged for HQ zero imputation. Issue logged. Thank you.'
+)
+sp()
+mono(
+    '[DQ-MN33] Noted. Issue logged for HQ review. Thank you.'
 )
 sp()
 
-h2('3.11  Retry (24h no reply — up to 3 times)')
+h2('3.13  Retry (24h no reply — up to 3 times)')
 mono(
-    '[DQ-AX42] Reminder (2 of 3):\n'
+    '[DQ-4XDF] Reminder (2 of 3):\n'
     'Addi Arekay HC, Jun 2026 — BCG under-1 = 970\n'
     'Reply 1-6 to resolve. Escalates if no reply.'
 )
 sp()
 
-h2('3.12  Woreda escalation summary')
+h2('3.14  Woreda escalation summary')
 body('Sent to the woreda HMIS officer after 72h of no facility-level resolution. One SMS per woreda covers all open issues in that woreda.')
 mono(
     '[DQ-WOREDA] Addi Arekay Woreda\n'
     '2 unresolved issues, Jun 2026:\n'
-    'DQ-AX42 Addi Arekay HC: BCG outlier (3 days)\n'
+    'DQ-4XDF Addi Arekay HC: BCG outlier (3 days)\n'
     'DQ-BK19 Addi Arekay HC: Penta3 > Penta1 (3 days)\n'
     'Details: <issue log URL>'
 )
 sp()
 
-h2('3.13  Monthly national digest')
+h2('3.15  Monthly national digest')
 body('Sent to the national TWG on the first of each month covering all prior-month unresolved issues.')
 mono(
     '[DQ-MONTHLY] Jun 2026 Summary\n'
@@ -270,102 +354,207 @@ sp()
 
 # ── 4. Conversation Flows ─────────────────────────────────────────────────────
 h1('4. Conversation Flows')
-body('The numbered-option model keeps conversations short: notification → number selection → (optional follow-up for extra input) → resolution confirmation. Two to four turns total. The numbered reply IS the decision — no separate YES/NO confirmation.')
+body('The numbered-option model keeps conversations short but includes a mandatory YES/NO confirmation before any DHIS2 write-back. Options that modify data take 3–4 turns: notification → option selection → (optional follow-up for extra input) → YES/NO confirmation → resolution. Options that do not modify data (keep as-is, flagged for HQ) resolve in 2 turns. If the user replies NO at the confirmation step, the original alert is re-sent and they may choose a different option.')
 sp()
 
-h2('4.1  Outlier — option with no follow-up (option 1: 6-month average)')
-body('Agent calculates the 6-month average and applies it automatically. Two turns.')
+h2('4.1  Outlier — option 1: 6-month average (3 turns)')
+body('Agent auto-computes the average of 3 periods before and 3 after the flagged period, presents it in the confirmation, and applies it on YES. No user value input needed.')
 mono(
-    'Agent     [DQ-AX42] Addi Arekay HC, Jun 2026. BCG under-1: 970 (normal ~97).\n'
-    '          Reply 1-6: 1=6mo-avg 2=keep(explain) 3=zero 4=specific# 5=HF-only 6=outreach-only\n'
+    'Agent     AHEAD DQ Alert [DQ-4XDF]\n'
+    '          Addi Arekay Health Center — Jun 2026\n'
+    '          BCG: 970 doses (expected 79–114)\n'
+    '          Reply with option number:\n'
+    '          1. Replace with 6-month average\n'
+    '          2. Keep as-is (no action)\n'
+    '          3. Set to zero\n'
+    '          4. Replace with specific value\n'
+    '          5. At health facility doses only\n'
+    '          6. Outreach doses only\n'
     '\n'
     'Facility  1\n'
     '\n'
-    'Agent     [DQ-AX42] Done. BCG under-1 replaced with 6-month avg (96).\n'
-    '          Decision logged. Issue closed.'
+    'Agent     [DQ-4XDF] Confirm: Replace with 6-month average (96)\n'
+    '          Addi Arekay Health Center (Jun 2026)\n'
+    '          Reply YES to update DHIS2 or NO to choose again.\n'
+    '\n'
+    'Facility  YES\n'
+    '\n'
+    'Agent     [DQ-4XDF] Noted. Replaced with 6-month average (96) in DHIS2. Thank you.'
 )
 sp()
 
-h2('4.2  Outlier — option with follow-up (option 4: specific number)')
-body('Three turns: notification, number selection, value entry.')
+h2('4.2  Outlier — option 2: keep as-is (2 turns — no data change)')
+body('Resolves immediately with no DHIS2 modification and no confirmation step.')
 mono(
-    'Agent     [DQ-AX42] Addi Arekay HC, Jun 2026. BCG under-1: 970 (normal ~97).\n'
-    '          Reply 1-6: 1=6mo-avg 2=keep(explain) 3=zero 4=specific# 5=HF-only 6=outreach-only\n'
-    '\n'
-    'Facility  4\n'
-    '\n'
-    'Agent     [DQ-AX42] Option 4: replace with specific number.\n'
-    '          Reply with the correct BCG under-1 value.\n'
-    '\n'
-    'Facility  35\n'
-    '\n'
-    'Agent     [DQ-AX42] Done. BCG under-1 updated to 97 at Addi Arekay HC.\n'
-    '          Decision logged. Issue closed.'
-)
-sp()
-
-h2('4.3  Outlier — keep as-is with explanation (option 2)')
-body('Three turns: notification, option selection, explanation text.')
-mono(
-    'Agent     [DQ-AX42] Addi Arekay HC, Jun 2026. BCG under-1: 970 (normal ~97).\n'
-    '          Reply 1-6: 1=6mo-avg 2=keep(explain) 3=zero 4=specific# 5=HF-only 6=outreach-only\n'
+    'Agent     AHEAD DQ Alert [DQ-4XDF]\n'
+    '          Addi Arekay Health Center — Jun 2026\n'
+    '          BCG: 970 doses (expected 79–114)\n'
+    '          Reply with option number:\n'
+    '          1. Replace with 6-month average\n'
+    '          2. Keep as-is (no action)\n'
+    '          ...\n'
     '\n'
     'Facility  2\n'
     '\n'
-    'Agent     [DQ-AX42] Option 2: keep as-is.\n'
-    '          Please reply with a brief explanation.\n'
-    '\n'
-    'Facility  PIRI campaign in North Gondar, Jun 2026\n'
-    '\n'
-    'Agent     [DQ-AX42] Noted. BCG under-1 kept as 350.\n'
-    '          Comment logged: "PIRI campaign in North Gondar, Jun 2026".\n'
-    '          Issue closed.'
+    'Agent     [DQ-4XDF] Noted. No change applied. Issue resolved. Thank you.'
 )
 sp()
 
-h2('4.4  DTP inconsistency — simple option (option 2: use Penta1 for both)')
-body('Agent replaces both values immediately. Two turns.')
+h2('4.3  Outlier — option 4: replace with specific value (4 turns)')
+body('Four turns: notification, option selection, value entry, YES/NO confirmation. This is the full flow for any option that requires user-supplied input before DHIS2 write-back.')
 mono(
-    'Agent     [DQ-BK19] Addi Arekay HC, Jun 2026.\n'
-    '          Penta1: 60 | Penta3: 90 (Penta3 exceeds Penta1 by 50%).\n'
-    '          Reply 1-5: 1=keep(explain) 2=use-Penta1(45) 3=use-Penta3(80) 4=specific 5=other\n'
-    '\n'
-    'Facility  2\n'
-    '\n'
-    'Agent     [DQ-BK19] Done. Penta1 and Penta3 under-1 both set to 60.\n'
-    '          Decision logged. Issue closed.'
-)
-sp()
-
-h2('4.5  DTP inconsistency — specific values (option 4)')
-body('Three turns: notification, option selection, two values separated by comma.')
-mono(
-    'Agent     [DQ-BK19] Addi Arekay HC, Jun 2026.\n'
-    '          Penta1: 60 | Penta3: 90 (Penta3 exceeds Penta1 by 50%).\n'
-    '          Reply 1-5: 1=keep(explain) 2=use-Penta1(45) 3=use-Penta3(80) 4=specific 5=other\n'
+    'Agent     AHEAD DQ Alert [DQ-4XDF]\n'
+    '          Addi Arekay Health Center — Jun 2026\n'
+    '          BCG: 970 doses (expected 79–114)\n'
+    '          Reply with option number:\n'
+    '          1. Replace with 6-month average\n'
+    '          2. Keep as-is (no action)\n'
+    '          3. Set to zero\n'
+    '          4. Replace with specific value\n'
+    '          5. At health facility doses only\n'
+    '          6. Outreach doses only\n'
     '\n'
     'Facility  4\n'
     '\n'
-    'Agent     [DQ-BK19] Option 4: replace with specific values.\n'
-    '          Reply with correct Penta1 and Penta3 under-1 separated by comma.\n'
+    'Agent     [DQ-4XDF] Please reply with the correct value\n'
+    '          (numbers only, e.g. 97).\n'
     '\n'
-    'Facility  88,72\n'
+    'Facility  97\n'
     '\n'
-    'Agent     [DQ-BK19] Done. Penta1 under-1 = 45, Penta3 under-1 = 38.\n'
-    '          Decision logged. Issue closed.'
+    'Agent     [DQ-4XDF] Confirm change:\n'
+    '          BCG <1yr — Addi Arekay Health Center (Jun 2026)\n'
+    '          970 -> 97\n'
+    '          Reply YES to update DHIS2 or NO to re-enter.\n'
+    '\n'
+    'Facility  YES\n'
+    '\n'
+    'Agent     [DQ-4XDF] Noted. Value corrected to 97 in DHIS2. Thank you.'
 )
 sp()
 
-h2('4.6  Missing report — recovery succeeds (SUBMIT)')
+h2('4.4  Outlier — option 4, user replies NO at confirmation (re-enter flow)')
+body('If the user replies NO at the confirmation step, the original alert is re-sent and they can choose a different option.')
+mono(
+    'Facility  NO\n'
+    '\n'
+    'Agent     [DQ-4XDF] No change applied. Re-sending alert:\n'
+    '          AHEAD DQ Alert [DQ-4XDF]\n'
+    '          Addi Arekay Health Center — Jun 2026\n'
+    '          BCG: 970 doses (expected 79–114)\n'
+    '          Reply with option number:\n'
+    '          1. Replace with 6-month average\n'
+    '          2. Keep as-is (no action)\n'
+    '          3. Set to zero\n'
+    '          4. Replace with specific value\n'
+    '          5. At health facility doses only\n'
+    '          6. Outreach doses only'
+)
+sp()
+
+h2('4.5  Outlier — options 5 and 6 (noted for HQ, no write-back, 2 turns)')
+body('These options do not trigger a confirmation step — the agent logs the decision and closes.')
+mono(
+    'Facility  5\n'
+    '\n'
+    'Agent     [DQ-4XDF] Noted. Flagged for HQ manual adjustment\n'
+    '          (at health facility doses only). Issue logged. Thank you.'
+)
+sp()
+
+h2('4.6  DTP inconsistency — option 2: use DTP1 value for both (3 turns)')
+body('Agent sets DTP3 = DTP1 value. Requires YES/NO confirmation before writing.')
+mono(
+    'Agent     AHEAD DQ Alert [DQ-BK19]\n'
+    '          Addi Arekay Health Center — Jun 2026\n'
+    '          Penta1 under-1: 60 | Penta3 under-1: 90\n'
+    '          Penta3 exceeds Penta1 by 50%.\n'
+    '          Reply with option number:\n'
+    '          1. Keep as-is\n'
+    '          2. Use DTP1 value for both\n'
+    '          3. Use DTP3 value for both\n'
+    '          4. Replace with specific value\n'
+    '          5. Other\n'
+    '\n'
+    'Facility  2\n'
+    '\n'
+    'Agent     [DQ-BK19] Confirm change:\n'
+    '          Penta3 <1yr — Addi Arekay Health Center (Jun 2026)\n'
+    '          90 -> 60 (set to DTP1 value)\n'
+    '          Reply YES to update DHIS2 or NO to choose again.\n'
+    '\n'
+    'Facility  YES\n'
+    '\n'
+    'Agent     [DQ-BK19] Noted. Value corrected to 60 in DHIS2. Thank you.'
+)
+sp()
+
+h2('4.7  DTP inconsistency — option 4: replace with specific value (4 turns)')
+body('Four turns: notification, option selection, value entry, YES/NO confirmation.')
+mono(
+    'Agent     AHEAD DQ Alert [DQ-BK19]\n'
+    '          Addi Arekay Health Center — Jun 2026\n'
+    '          Penta1 under-1: 60 | Penta3 under-1: 90\n'
+    '          Penta3 exceeds Penta1 by 50%.\n'
+    '          Reply with option number:\n'
+    '          1. Keep as-is\n'
+    '          2. Use DTP1 value for both\n'
+    '          3. Use DTP3 value for both\n'
+    '          4. Replace with specific value\n'
+    '          5. Other\n'
+    '\n'
+    'Facility  4\n'
+    '\n'
+    'Agent     [DQ-BK19] Please reply with the correct value\n'
+    '          (numbers only, e.g. 72).\n'
+    '\n'
+    'Facility  72\n'
+    '\n'
+    'Agent     [DQ-BK19] Confirm change:\n'
+    '          Penta3 <1yr — Addi Arekay Health Center (Jun 2026)\n'
+    '          90 -> 72\n'
+    '          Reply YES to update DHIS2 or NO to re-enter.\n'
+    '\n'
+    'Facility  YES\n'
+    '\n'
+    'Agent     [DQ-BK19] Noted. Value corrected to 72 in DHIS2. Thank you.'
+)
+sp()
+
+h2('4.8  DTP inconsistency — option 1: keep as-is (2 turns — no data change)')
+body('Resolves immediately with no DHIS2 modification.')
+mono(
+    'Facility  1\n'
+    '\n'
+    'Agent     [DQ-BK19] Noted. No change applied. Issue resolved. Thank you.'
+)
+sp()
+
+h2('4.9  DTP inconsistency — option 5: other (noted, no write-back, 2 turns)')
+mono(
+    'Facility  5\n'
+    '\n'
+    'Agent     [DQ-BK19] Noted. Flagged for HQ review. Issue logged. Thank you.'
+)
+sp()
+
+h2('4.10  Missing report — recovery succeeds (SUBMIT)')
 body('Worker submits the missing report in DHIS2. Agent re-checks within the hour and closes automatically.')
 mono(
-    'Agent     [DQ-MN33] Addi Arekay HC. No completed EPI report for May 2026.\n'
-    '          Reply SUBMIT if submitting now, or 1-4 for cleaning.\n'
+    'Agent     AHEAD DQ Alert [DQ-MN33]\n'
+    '          Addi Arekay Health Center\n'
+    '          No completed EPI report for May 2026.\n'
+    '          Can you submit the report? Reply SUBMIT.\n'
+    '          Or if data is unavailable, select:\n'
+    '          1. Will submit by [date]\n'
+    '          2. Data cannot be recovered\n'
+    '          3. Facility closed / no service that month\n'
+    '          4. Other\n'
     '\n'
     'Facility  SUBMIT\n'
     '\n'
     'Agent     [DQ-MN33] Thanks — checking DHIS2 within the hour.\n'
-    '          Issue will close automatically once your submission appears.\n'
+    '          Issue will close automatically once your\n'
+    '          submission appears.\n'
     '\n'
     '          [1 hour later — agent finds the registration]\n'
     '\n'
@@ -373,24 +562,36 @@ mono(
 )
 sp()
 
-h2('4.7  Missing report — cleaning option (option 2: replace with zero)')
-body('Recovery not possible. Worker selects a cleaning option instead.')
+h2('4.11  Missing report — option 1: will submit by date (3 turns)')
+body('User provides a commitment date. Agent acknowledges and flags for follow-up. No DHIS2 write-back.')
 mono(
-    'Agent     [DQ-MN33] Addi Arekay HC. No completed EPI report for May 2026.\n'
-    '          Reply SUBMIT if submitting now, or 1-4 for cleaning.\n'
+    'Facility  1\n'
     '\n'
-    'Facility  2\n'
+    'Agent     [DQ-MN33] Please reply with the date you will submit\n'
+    '          (e.g., 2026-06-10).\n'
     '\n'
-    'Agent     [DQ-MN33] Done. May 2026 recorded as zero for all vaccines at Addi Arekay HC.\n'
-    '          (Facility closed / no service that month.) Issue closed.'
+    'Facility  2026-06-10\n'
+    '\n'
+    'Agent     [DQ-MN33] Noted. Submission expected by 2026-06-10.\n'
+    '          Issue logged for follow-up. Thank you.'
 )
 sp()
 
-h2('4.8  No reply — retry then escalation')
+h2('4.12  Missing report — options 2, 3, 4 (noted, flagged for HQ, 2 turns)')
+body('None of these options trigger a DHIS2 write-back. Options 2 and 3 are flagged for HQ zero imputation; option 4 is noted for HQ review.')
+mono(
+    'Facility  3\n'
+    '\n'
+    'Agent     [DQ-MN33] Noted. Facility closed / no service that month\n'
+    '          — flagged for HQ zero imputation. Issue logged. Thank you.'
+)
+sp()
+
+h2('4.13  No reply — retry then escalation')
 mono(
     'Day 0     Agent sends numbered-option notification\n'
-    'Day 1     No reply — Retry 1: "[DQ-AX42] Reminder (1 of 3): Addi Arekay HC BCG=970. Reply 1-6."\n'
-    'Day 2     No reply — Retry 2: "[DQ-AX42] Reminder (2 of 3): ... Issue escalates if no reply."\n'
+    'Day 1     No reply — Retry 1: "[DQ-4XDF] Reminder (1 of 3): Addi Arekay HC BCG=970. Reply 1-6."\n'
+    'Day 2     No reply — Retry 2: "[DQ-4XDF] Reminder (2 of 3): ... Issue escalates if no reply."\n'
     'Day 3     No reply — Retry 3 + escalate: woreda HMIS officer receives summary SMS\n'
     'Day 10    No woreda resolution — escalate to zone\n'
     'Day 17    No zone resolution — escalate to region\n'
@@ -398,8 +599,57 @@ mono(
 )
 sp()
 
-# ── 5. Escalation Timeline ────────────────────────────────────────────────────
-h1('5. Escalation Timeline')
+# ── 5. Conversation States ─────────────────────────────────────────────────────
+h1('5. Conversation States')
+body('Each issue progresses through four internal conversation states. The state determines how the agent interprets an inbound reply from the facility worker.')
+sp()
+tbl(
+    ['State', 'Meaning', 'Agent expects', 'Next state on valid input'],
+    [
+        ['awaiting_option',
+         'Alert has been sent; waiting for the worker to pick a numbered option',
+         'A digit matching one of the presented options',
+         'awaiting_followup (if option needs input) or awaiting_confirmation (if option writes data directly) or closed (if no-write option)'],
+        ['awaiting_followup',
+         'Worker picked an option that requires additional input (e.g. a specific value or a date)',
+         'The required input (a number, a date, etc.)',
+         'awaiting_confirmation (if option writes data) or closed (if HQ-flagged option)'],
+        ['awaiting_confirmation',
+         'Agent has shown the exact proposed change; waiting for YES/NO before writing to DHIS2',
+         'YES or NO. If NO, issue reverts to awaiting_option and the alert is re-sent.',
+         'closed (on YES) or awaiting_option (on NO)'],
+        ['closed',
+         'Issue is fully resolved; no further action expected',
+         '(no further input expected — any reply is ignored or acknowledged)',
+         '—'],
+    ]
+)
+sp()
+body('State transition summary for a 4-turn option (e.g., outlier option 4): awaiting_option → awaiting_followup → awaiting_confirmation → closed. For a 3-turn option (e.g., outlier option 1): awaiting_option → awaiting_confirmation → closed. For a 2-turn option (e.g., keep as-is): awaiting_option → closed.')
+sp()
+
+# ── 6. Issue Log Status Progression ──────────────────────────────────────────
+h1('6. Issue Log Status Progression')
+body('Issue statuses visible on the dashboard at http://localhost:5001/issues. The dashboard auto-refreshes every 10 seconds.')
+sp()
+tbl(
+    ['Status', 'Meaning'],
+    [
+        ['OPEN',        'Issue detected; no notification sent yet (brief window between detection and SMS delivery)'],
+        ['NOTIFIED',    'Initial alert SMS sent to facility worker; waiting for first reply'],
+        ['IN PROGRESS', 'First reply received from facility worker; conversation is underway'],
+        ['CONFIRMING',  'Worker has provided a value or selected a write-back option; waiting for YES/NO confirmation before DHIS2 write-back'],
+        ['RESOLVED',    'Issue closed after YES confirmation and successful DHIS2 write-back'],
+        ['CONFIRMED OK', 'Issue closed with no data change (keep as-is or equivalent option)'],
+        ['ESCALATED',   'No facility response after 3 retries; woreda (or higher) officer notified'],
+    ]
+)
+sp()
+body('Status progression for a typical resolved issue: OPEN → NOTIFIED → IN PROGRESS → CONFIRMING → RESOLVED. For a keep-as-is option: OPEN → NOTIFIED → IN PROGRESS → CONFIRMED OK. For a no-response escalation: OPEN → NOTIFIED → ESCALATED.')
+sp()
+
+# ── 7. Escalation Timeline ────────────────────────────────────────────────────
+h1('7. Escalation Timeline')
 body('The timeline below shows a single issue from detection to national digest, assuming no resolution at any level.')
 sp()
 mono(
@@ -426,9 +676,9 @@ sp()
 body('Escalation messages at woreda level and above are sent as a single summary SMS covering all unresolved issues from that org unit in the same period — not one SMS per issue. This prevents notification fatigue at higher levels where one officer may receive reports from many facilities.')
 sp()
 
-# ── 6. Issue Log Web App ──────────────────────────────────────────────────────
-h1('6. Issue Log Web App (Standalone)')
-body('A standalone web application at http://localhost:5001, completely separate from DHIS2. No DHIS2 login required. It reads from the agent\'s own SQLite database and is the primary monitoring surface for the AHEAD team and supervisors. Every issue the agent detects, every SMS sent and received, and every state change is visible here in real-time.')
+# ── 8. Issue Log Web App ──────────────────────────────────────────────────────
+h1('8. Issue Log Web App (Standalone)')
+body('A standalone web application at http://localhost:5001/issues, completely separate from DHIS2. No DHIS2 login required. It reads from the agent\'s own SQLite database and is the primary monitoring surface for the AHEAD team and supervisors. Every issue the agent detects, every SMS sent and received, and every state change is visible here in real-time. The dashboard auto-refreshes every 10 seconds.')
 sp()
 
 h2('Page layout (wireframe)')
@@ -438,15 +688,17 @@ mono(
     '--------------------------------------------------------------------------------\n'
     'Ref     Facility          Issue              Period  Status    Opened      Updated\n'
     '--------------------------------------------------------------------------------\n'
-    'DQ-AX42 Addi Arekay HC    Outlier: BCG 970   202606  RESOLVED  2026-06-01  06-01\n'
+    'DQ-4XDF Addi Arekay HC    Outlier: BCG 970   202606  RESOLVED  2026-06-01  06-01\n'
     'DQ-BK19 Addi Arekay HC    DTP3 > DTP1        202606  RESOLVED  2026-06-01  06-01\n'
     'DQ-MN33 Addi Arekay HC    Missing report     202605  RESOLVED  2026-06-01  06-01\n'
-    '[> expand] Full SMS thread for DQ-AX42:\n'
-    '  2026-06-01 10:02  OUT  [DQ-AX42] Addi Arekay HC, Jun 2026. BCG under-1: 970...\n'
+    '[> expand] Full SMS thread for DQ-4XDF:\n'
+    '  2026-06-01 10:02  OUT  AHEAD DQ Alert [DQ-4XDF] Addi Arekay Health Center...\n'
     '  2026-06-01 10:04  IN   4\n'
-    '  2026-06-01 10:04  OUT  [DQ-AX42] Option 4: replace with specific number...\n'
+    '  2026-06-01 10:04  OUT  [DQ-4XDF] Please reply with the correct value...\n'
     '  2026-06-01 10:05  IN   97\n'
-    '  2026-06-01 10:05  OUT  [DQ-AX42] Done. BCG under-1 updated to 97. Issue closed.\n'
+    '  2026-06-01 10:05  OUT  [DQ-4XDF] Confirm change: BCG <1yr 970 -> 97...\n'
+    '  2026-06-01 10:06  IN   YES\n'
+    '  2026-06-01 10:06  OUT  [DQ-4XDF] Noted. Value corrected to 97 in DHIS2. Thank you.\n'
     '--------------------------------------------------------------------------------'
 )
 sp()
@@ -455,11 +707,11 @@ h2('Issue log columns')
 tbl(
     ['Column', 'Content'],
     [
-        ['Ref ID',          'e.g. DQ-AX42 — unique across all issues, never reused'],
+        ['Ref ID',          'e.g. DQ-4XDF — unique across all issues, never reused'],
         ['Facility',        'Facility name and woreda in parentheses'],
         ['Issue type',      'Outlier (element + value), DTP3 > DTP1, or Missing report'],
         ['Period',          'DHIS2 period code, displayed as human-readable month (Apr 2026)'],
-        ['Status',          'OPEN | AWAITING CONFIRM | RESOLVED | DISMISSED | ESCALATED'],
+        ['Status',          'OPEN | NOTIFIED | IN PROGRESS | CONFIRMING | RESOLVED | CONFIRMED OK | ESCALATED'],
         ['Cascade level',   'Current level: Facility / Woreda / Zone / Region / National'],
         ['Opened',          'Timestamp when issue was first detected'],
         ['Last contact',    'Timestamp of last outbound SMS'],
@@ -473,7 +725,7 @@ h2('Filters')
 tbl(
     ['Filter', 'Options'],
     [
-        ['Status',   'All / Open / Escalated / Resolved / Dismissed'],
+        ['Status',   'All / Open / Notified / In Progress / Confirming / Resolved / Confirmed OK / Escalated'],
         ['Type',     'All / Outlier / DTP inconsistency / Missing report'],
         ['Woreda',   'All / [woreda names from org unit hierarchy]'],
         ['Period',   'All / [YYYYMM dropdown]'],
@@ -482,23 +734,25 @@ tbl(
 )
 sp()
 
-# ── 7. Edge Cases ─────────────────────────────────────────────────────────────
-h1('7. Edge Cases and Agent Behaviour')
+# ── 9. Edge Cases ─────────────────────────────────────────────────────────────
+h1('9. Edge Cases and Agent Behaviour')
 tbl(
     ['Edge case', 'Agent behaviour'],
     [
         ['Inbound SMS contains no reference ID',
-         'Agent checks if the sender\'s phone number has exactly one open issue. If yes, routes to that issue. If multiple open issues, replies: "Please include your issue ref ID (e.g. DQ-AX42) so we can route your reply."'],
+         'Agent checks if the sender\'s phone number has exactly one open issue. If yes, routes to that issue. If multiple open issues, replies: "Please include your issue ref ID (e.g. DQ-4XDF) so we can route your reply."'],
         ['Reference ID not found or already closed',
          'Agent replies: "Ref ID not recognised or issue already closed. View all issues at <issue log URL>."'],
-        ['Worker replies with non-numeric text for an outlier issue',
-         'Claude returns intent=unknown. Agent replies: "Please reply with a number (the correct value) or KEEP to leave as-is."'],
+        ['Worker replies with non-numeric text when a number is expected',
+         'Claude returns intent=unknown. Agent replies: "Please reply with a number (the option number or the correct value) as prompted."'],
+        ['Worker replies NO at confirmation step',
+         'Issue reverts to awaiting_option state. The original alert is re-sent verbatim so the worker can choose a different option.'],
         ['Worker sends a value that still looks like an outlier',
-         'Agent applies the confirmed value as requested, then re-runs DQ checks in the next poll cycle. If the new value still fails, a new issue is created with a new ref ID.'],
+         'Agent applies the confirmed value as requested (after YES confirmation), then re-runs DQ checks in the next poll cycle. If the new value still fails, a new issue is created with a new ref ID.'],
         ['Same facility has two open issues simultaneously',
          'Both have distinct ref IDs. Every outbound message includes the ref ID. Worker must include the ref ID in replies — if missing, agent uses the single-open-issue routing logic above.'],
         ['Correction POST to DHIS2 fails (DHIS2 down or network error)',
-         'Agent sends SMS: "Could not apply the change right now. Please re-enter the value directly in DHIS2 and reply DONE once submitted." Issue status remains awaiting_confirm. Retry flagged for next cycle.'],
+         'Agent sends SMS: "Could not apply the change right now. Please re-enter the value directly in DHIS2 and reply DONE once submitted." Issue status remains CONFIRMING. Retry flagged for next cycle.'],
         ['Worker replies DONE (missing report already submitted)',
          'Agent schedules a re-check in 1 hour via APScheduler. If the registration appears, issue closes automatically with a confirmation SMS. If not, issue remains open.'],
         ['Escalation notification itself fails to deliver',
@@ -509,8 +763,8 @@ tbl(
 )
 sp()
 
-# ── 8. Reference ID Design ────────────────────────────────────────────────────
-h1('8. Reference ID Design')
+# ── 10. Reference ID Design ───────────────────────────────────────────────────
+h1('10. Reference ID Design')
 body('Every issue gets a unique ID on creation. The ID appears in every outbound message and is how the agent routes inbound replies to the right issue. Design constraints:')
 sp()
 bullet('Visually unambiguous when read aloud or off a small phone screen')
@@ -532,26 +786,44 @@ tbl(
 )
 sp()
 
-# ── 9. MVP vs Phase 2 Scope ───────────────────────────────────────────────────
-h1('9. MVP vs Phase 2 Scope')
+# ── 11. WhatsApp Mode ──────────────────────────────────────────────────────────
+h1('11. WhatsApp Mode (Demo / Production Toggle)')
+body('For the demo, the agent uses the Twilio WhatsApp sandbox. Set TWILIO_WHATSAPP=true in .env to activate WhatsApp mode. Set TWILIO_WHATSAPP=false for standard SMS in production.')
+sp()
+tbl(
+    ['Mode', 'TWILIO_WHATSAPP value', 'How it works'],
+    [
+        ['WhatsApp sandbox (demo)',
+         'true',
+         'Messages sent and received via the Twilio WhatsApp sandbox number (+1 415 523 8886). The presenter\'s phone must first send "join [keyword]" to that number to opt in to the sandbox.'],
+        ['Standard SMS (production)',
+         'false',
+         'Messages sent and received via a standard Twilio SMS number. No opt-in required. Works on any phone including basic feature phones.'],
+    ]
+)
+sp()
+
+# ── 12. MVP vs Phase 2 Scope ──────────────────────────────────────────────────
+h1('12. MVP vs Phase 2 Scope')
 body('The following table clarifies what is in scope for this build and what is explicitly deferred. Phase 2 items are excluded not because they are unimportant but because they either require external dependencies (Meta WhatsApp approval, DHIS2 App Framework expertise) or can be validated after the core SMS loop is working.')
 sp()
 tbl(
     ['Feature', 'MVP', 'Phase 2', 'Notes'],
     [
         ['Post-commit DQ checks (polling)',                     'Yes', '—',  ''],
-        ['Outlier detection (DHIS2 built-in, Z-score)',         'Yes', '—',  ''],
-        ['DTP1/DTP3 consistency (DHIS2 validation rules)',      'Yes', '—',  ''],
+        ['Outlier detection: Z-score > 2.0 SD (AHEAD Method 1)', 'Yes', '—', 'AHEAD Table 1 operational threshold'],
+        ['Outlier detection: absolute diff > 100 doses (AHEAD Method 5)', 'Yes', '—', ''],
+        ['DTP1/DTP3 consistency check (30% relative or 100 absolute)', 'Yes', '—', 'Monthly facility threshold per AHEAD guide'],
         ['Missing report detection',                            'Yes', '—',  ''],
-        ['Two-way SMS conversation with confirmation loop',     'Yes', '—',  ''],
+        ['Two-way SMS with YES/NO confirmation before write-back', 'Yes', '—', 'All DHIS2 write-back options require confirmation'],
         ['Full escalation cascade (facility → national)',       'Yes', '—',  ''],
         ['Apply corrections back to DHIS2 via API',            'Yes', '—',  ''],
-        ['Issue log web page (standalone Flask)',               'Yes', '—',  ''],
+        ['Issue log web page (standalone Flask, auto-refresh)', 'Yes', '—',  'Dashboard at localhost:5001/issues'],
         ['Claude API (reply parsing + message generation)',     'Yes', '—',  ''],
         ['English-language messages only',                      'Yes', '—',  ''],
         ['5-method outlier ensemble (R script integration)',    '—',  'Yes', 'Requires access to AHEAD R scripts; deferred'],
         ['Name consistency check',                              '—',  'Yes', 'Not covered by DHIS2 built-in rules'],
-        ['WhatsApp channel',                                    '—',  'Yes', 'Requires Meta Business API approval (1-4 weeks)'],
+        ['WhatsApp channel (production / approved)',            '—',  'Yes', 'Requires Meta Business API approval (1-4 weeks); sandbox available for demo'],
         ['Email channel',                                       '—',  'Yes', 'Reply parsing noisier; lower priority'],
         ['Pre-commit inline form warning (custom form JS)',     '—',  'Yes', 'Requires DHIS2 custom form; useful but not needed to validate cascade'],
         ['Amharic messages',                                    '—',  'Yes', 'Claude can generate; need translation review before sending'],
@@ -561,18 +833,18 @@ tbl(
 )
 sp()
 
-# ── 10. Demo Script ───────────────────────────────────────────────────────────
-h1('10. Demo Script')
+# ── 13. Demo Script ───────────────────────────────────────────────────────────
+h1('13. Demo Script')
 body('Three live data-entry demos, all using the same facility and user account: eth_facility_01 (Almaz Tadesse), Addi Arekay Health Center. You type wrong values directly into the DHIS2 form as the facility worker would, the agent detects the issue within ~30 seconds, and the numbered-option SMS conversation plays out on the presenter\'s phone. Total runtime: ~15 minutes.')
 sp()
 
 tbl(
     ['Demo', 'Issue type', 'Facility', 'User', 'Period', 'Duration', 'What it proves'],
     [
-        ['A', 'Statistical outlier',     'Addi Arekay HC', 'eth_facility_01', 'Jun 2026', '~6 min', 'Type BCG=970 (meant 97) → outlier detected → option 4 → corrected to 97 in DHIS2'],
-        ['B', 'DTP1/DTP3 inconsistency', 'Addi Arekay HC', 'eth_facility_01', 'Jun 2026', '~5 min', 'Edit Penta3=90 > Penta1=60 → validation rule → option 2 → both corrected'],
-        ['C', 'Missing report',          'Addi Arekay HC', 'eth_facility_01', 'May 2026', '~4 min', 'No data for prior month → agent flags → SUBMIT → recovery flow'],
-        ['D', 'Issue log web app',       '(all)',           '—',               '(all)',    '~3 min', 'Supervisor view: all issues, numbered-option threads, statuses'],
+        ['A', 'Statistical outlier',     'Addi Arekay HC', 'eth_facility_01', 'Jun 2026', '~6 min', 'Type BCG=970 (meant 97) → outlier detected → option 4 → value entered → confirmed YES → corrected to 97 in DHIS2'],
+        ['B', 'DTP1/DTP3 inconsistency', 'Addi Arekay HC', 'eth_facility_01', 'Jun 2026', '~5 min', 'Edit Penta3=90 > Penta1=60 → validation rule → option 2 → confirmed YES → both corrected'],
+        ['C', 'Missing report',          'Addi Arekay HC', 'eth_facility_01', 'May 2026', '~4 min', 'No data for prior month → agent flags → SUBMIT → recovery flow → auto-close'],
+        ['D', 'Issue log web app',       '(all)',           '—',               '(all)',    '~3 min', 'Supervisor view: all issues, full 5-turn threads with confirmation step, statuses'],
     ]
 )
 sp()
@@ -584,17 +856,18 @@ bullet('inject_data.py has been run — 28 months of clean baseline data loaded 
 bullet('contacts table in agent SQLite seeded with presenter\'s phone for Addi Arekay Health Center')
 bullet('Presenter\'s phone visible to audience (screen mirror or camera pointing at phone)')
 bullet('Twilio account active and TWILIO_FROM_NUMBER configured in .env')
+bullet('TWILIO_WHATSAPP=true in .env (sandbox mode for demo) — presenter\'s phone has sent "join [keyword]" to +1 415 523 8886')
 sp()
 
 body('All demos use a single login: eth_facility_01 / [DHIS2_USER_PASSWORD from .env]. This account belongs to Almaz Tadesse and is scoped to Addi Arekay Health Center only — exactly the facility-worker persona being demonstrated.')
 sp()
-body('Demos A and B use June 2026 (202606) — a period with no data yet. Demo C uses May 2026 (202505) to show the missing report scenario for a prior month that was never formally completed.')
+body('Demos A and B use June 2026 (202606) — a period with no data yet. Demo C uses May 2026 (202605) to show the missing report scenario for a prior month that was never formally completed.')
 sp()
-body('Addi Arekay Health Center is a Health Center (tier 2). BCG under-1 baseline: ~97/month (range 80–115 across 22 months). Penta1 under-1: ~87. Penta3 under-1: ~71. Detection is within ~30 seconds via lastUpdated polling, or trigger instantly with: POST http://localhost:5001/api/scan')
+body('Addi Arekay Health Center is a Health Center (tier 2). BCG under-1 baseline: ~97/month (range 80–115 across 22 months). Penta1 under-1: ~87. Penta3 under-1: ~71. Outlier detection threshold: Z-score > 2.0 SD OR absolute diff > 100 doses. Detection is within ~30 seconds via lastUpdated polling, or trigger instantly with: POST http://localhost:5001/api/scan')
 sp()
 
 h2('Demo A — Statistical Outlier: Addi Arekay Health Center, Jun 2026 (~6 min)')
-body('What this shows: Almaz enters her June 2026 BCG count with an extra zero — a realistic typo. The agent detects it against 22 months of baseline history and sends the numbered-option SMS. The full loop plays out in front of the audience in real time.')
+body('What this shows: Almaz enters her June 2026 BCG count with an extra zero — a realistic typo. The agent detects it against 22 months of baseline history (Z-score > 2.0 SD threshold) and sends the numbered-option SMS. The full loop — including the YES/NO confirmation step — plays out in front of the audience in real time.')
 sp()
 
 body('Step 1 — Log in and open the data entry form')
@@ -618,54 +891,64 @@ sp()
 
 body('Step 3 — Agent detects the outlier (~30 seconds)')
 bullet('Wait ~30 seconds, OR trigger immediately: curl -s -X POST http://localhost:5001/api/scan')
-bullet('Agent queries outlier detection: BCG = 970 vs 22-month mean ~97, z-score ~87 — clearly flagged')
-bullet('New issue created. Open http://localhost:5001/issues — issue appears as OPEN')
+bullet('Agent runs outlier detection: BCG = 970 vs 22-month mean ~97. Z-score well above 2.0 SD threshold — flagged. Also exceeds 100-dose absolute diff threshold.')
+bullet('New issue created. Open http://localhost:5001/issues — issue appears as NOTIFIED')
 sp()
 
 body('Step 4 — SMS arrives on presenter\'s phone')
 mono(
-    '[DQ-XXXX] Addi Arekay HC, Jun 2026\n'
-    'BCG under-1: 970 (normal ~97, flagged)\n'
+    'AHEAD DQ Alert [DQ-XXXX]\n'
+    'Addi Arekay Health Center — Jun 2026\n'
+    'BCG: 970 doses (expected 79–114)\n'
     'Reply with option number:\n'
-    '1. Replace with 6-month avg\n'
-    '2. Keep as-is (explain)\n'
-    '3. Treat as zero\n'
-    '4. Replace with specific number\n'
-    '5. Use facility doses only\n'
-    '6. Use outreach doses only'
+    '1. Replace with 6-month average\n'
+    '2. Keep as-is (no action)\n'
+    '3. Set to zero\n'
+    '4. Replace with specific value\n'
+    '5. At health facility doses only\n'
+    '6. Outreach doses only'
 )
-bullet('Point out: numbered options mirror the AHEAD Excel dropdown exactly — same decision schema George\'s team uses today, now delivered by SMS')
+bullet('Point out: numbered options mirror the AHEAD reference guide (section 2.2) exactly — same decision schema George\'s team uses today, now delivered by SMS')
+bullet('Issue log status is now IN PROGRESS once the first reply arrives')
 sp()
 
-body('Step 5 — Select option 4 (replace with specific number)')
+body('Step 5 — Select option 4 (replace with specific value)')
 bullet('Reply to the SMS: 4')
 bullet('Agent sends a follow-up:')
 mono(
-    '[DQ-XXXX] Option 4: replace with specific number.\n'
-    'Reply with the correct BCG under-1 value.'
+    '[DQ-XXXX] Please reply with the correct value\n'
+    '(numbers only, e.g. 97).'
 )
 bullet('Reply: 97')
+bullet('Agent sends the YES/NO confirmation (issue log status: CONFIRMING):')
+mono(
+    '[DQ-XXXX] Confirm change:\n'
+    'BCG <1yr — Addi Arekay Health Center (Jun 2026)\n'
+    '970 -> 97\n'
+    'Reply YES to update DHIS2 or NO to re-enter.'
+)
+bullet('Reply: YES')
 bullet('Agent applies the correction and sends:')
 mono(
-    '[DQ-XXXX] Done. BCG under-1 updated to 97 at Addi Arekay HC.\n'
-    'Decision logged. Issue closed.'
+    '[DQ-XXXX] Noted. Value corrected to 97 in DHIS2. Thank you.'
 )
+bullet('Issue log status changes to RESOLVED')
 sp()
 
 body('Step 6 — Show the correction in DHIS2')
 bullet('Switch back to DHIS2 and refresh Addi Arekay HC / June 2026')
 bullet('BCG under-1 now shows 97 (was 970)')
-bullet('Narrate: "The correction was written to DHIS2 by the agent. The audit log will show agent_service made this change — fully traceable."')
+bullet('Narrate: "The correction was written to DHIS2 by the agent after explicit YES confirmation. The audit log will show agent_service made this change — fully traceable."')
 sp()
 
 body('Expected final state:')
 bullet('DHIS2: Addi Arekay HC, Jun 2026, BCG under-1 = 97 (was 970)')
-bullet('Issue log: DQ-XXXX | Outlier: BCG | Addi Arekay HC | RESOLVED | Option 4: specific number (97)')
-bullet('SMS thread: 4 messages — notification, "4", follow-up question, "97", resolution')
+bullet('Issue log: DQ-XXXX | Outlier: BCG | Addi Arekay HC | RESOLVED | Option 4: specific value (97)')
+bullet('SMS thread: 5 messages — notification, "4", follow-up question, "97", confirmation request, "YES", resolution (5 turns visible in log)')
 sp()
 
 h2('Demo B — DTP1/DTP3 Inconsistency: Addi Arekay Health Center, Jun 2026 (~5 min)')
-body('What this shows: Almaz accidentally swaps her Penta1 and Penta3 figures. The EPI metadata package validation rule fires — Penta3 > Penta1 by 50%, well above the 30% threshold for monthly facility data. Same form, same login.')
+body('What this shows: Almaz accidentally swaps her Penta1 and Penta3 figures. The agent fires — Penta3 > Penta1 by 50%, above the 30% relative threshold for monthly facility data. Same form, same login.')
 sp()
 
 body('Step 1 — Edit the same June 2026 form')
@@ -678,51 +961,51 @@ sp()
 
 body('Step 2 — Agent detects the DTP violation (~30 seconds)')
 bullet('Wait or POST http://localhost:5001/api/scan')
-bullet('Agent runs the DHIS2 validation check. Built-in EPI rule fires: Penta3 (90) > Penta1 (60)')
-bullet('Relative difference: (90-60)/60 = 50% — above the 30% threshold for monthly facility data')
-bullet('New issue created and visible in http://localhost:5001/issues')
+bullet('Agent runs DTP check. Relative difference: (90-60)/60 = 50% — above the 30% threshold. Absolute diff = 30 — below 100 but relative threshold fires.')
+bullet('New issue created and visible in http://localhost:5001/issues as NOTIFIED')
 sp()
 
 body('Step 3 — SMS arrives')
 mono(
-    '[DQ-XXXX] Addi Arekay HC, Jun 2026\n'
+    'AHEAD DQ Alert [DQ-XXXX]\n'
+    'Addi Arekay Health Center — Jun 2026\n'
     'Penta1 under-1: 60 | Penta3 under-1: 90\n'
     'Penta3 exceeds Penta1 by 50%.\n'
     'Reply with option number:\n'
-    '1. Keep as-is (explain)\n'
-    '2. Set both to Penta1 value (60)\n'
-    '3. Set both to Penta3 value (90)\n'
-    '4. Replace with specific values\n'
-    '5. Other (explain)'
+    '1. Keep as-is\n'
+    '2. Use DTP1 value for both\n'
+    '3. Use DTP3 value for both\n'
+    '4. Replace with specific value\n'
+    '5. Other'
 )
-bullet('Narrate: "The 3rd dose cannot exceed the 1st dose — dropout only goes one direction. The agent surfaces the gap (50%) and gives Almaz the same options she\'d see in the Excel sheet."')
+bullet('Narrate: "The 3rd dose cannot exceed the 1st dose — dropout only goes one direction. The agent surfaces the gap (50%) and gives Almaz the same options she\'d see in the AHEAD reference guide."')
 sp()
 
-body('Step 4 — Select option 4 (replace with specific values) to restore the correct numbers')
-bullet('Narrate: "Almaz knows the real numbers — Penta1 is 88 and Penta3 is 72. She selects option 4 to enter both."')
-bullet('Reply: 4')
-bullet('Agent sends:')
+body('Step 4 — Select option 2 (use DTP1 value for both) to demonstrate the confirmation step')
+bullet('Narrate: "Almaz knows that Penta1 (60) is the correct reference. She selects option 2."')
+bullet('Reply: 2')
+bullet('Agent sends the YES/NO confirmation (issue log: CONFIRMING):')
 mono(
-    '[DQ-XXXX] Option 4: replace with specific values.\n'
-    'Reply with correct Penta1 and Penta3 under-1\n'
-    'separated by comma. (e.g., 45,42)'
+    '[DQ-XXXX] Confirm change:\n'
+    'Penta3 <1yr — Addi Arekay Health Center (Jun 2026)\n'
+    '90 -> 60 (set to DTP1 value)\n'
+    'Reply YES to update DHIS2 or NO to choose again.'
 )
-bullet('Reply: 88,72')
-bullet('Agent applies both and sends:')
+bullet('Reply: YES')
+bullet('Agent applies and sends:')
 mono(
-    '[DQ-XXXX] Done. Penta1 under-1 = 88, Penta3 under-1 = 72.\n'
-    'Decision logged. Issue closed.'
+    '[DQ-XXXX] Noted. Value corrected to 60 in DHIS2. Thank you.'
 )
 sp()
 
 body('Step 5 — Show in DHIS2 and issue log')
-bullet('Refresh Addi Arekay HC / June 2026: Penta1 under-1 = 88, Penta3 under-1 = 72')
-bullet('Issue log: DQ-XXXX | DTP3 > DTP1 | Addi Arekay HC | RESOLVED | Option 4: specific values (88, 72)')
+bullet('Refresh Addi Arekay HC / June 2026: Penta3 under-1 = 60 (corrected to match Penta1)')
+bullet('Issue log: DQ-XXXX | DTP3 > DTP1 | Addi Arekay HC | RESOLVED | Option 2: use DTP1 value (60)')
 sp()
 
 body('Expected final state:')
-bullet('DHIS2: Addi Arekay HC, Jun 2026, Penta1=88, Penta3=72 — both corrected')
-bullet('SMS thread: 4 messages — notification, "4", follow-up question, "88,72", resolution')
+bullet('DHIS2: Addi Arekay HC, Jun 2026, Penta1=60, Penta3=60 — Penta3 corrected to match Penta1')
+bullet('SMS thread: 4 messages — notification, "2", confirmation request, "YES", resolution')
 sp()
 
 h2('Demo C — Missing Report: Addi Arekay Health Center, May 2026 (~4 min)')
@@ -743,16 +1026,17 @@ sp()
 
 body('Step 3 — SMS arrives on presenter\'s phone')
 mono(
-    '[DQ-XXXX] Addi Arekay HC\n'
+    'AHEAD DQ Alert [DQ-XXXX]\n'
+    'Addi Arekay Health Center\n'
     'No completed EPI report for May 2026.\n'
     'Can you submit the report? Reply SUBMIT.\n'
-    'Or if unavailable, select:\n'
-    '1. Replace with 6-month avg\n'
-    '2. Replace with zero (closed/no service)\n'
-    '3. Replace with specific values\n'
-    '4. Remove from analysis'
+    'Or if data is unavailable, select:\n'
+    '1. Will submit by [date]\n'
+    '2. Data cannot be recovered\n'
+    '3. Facility closed / no service that month\n'
+    '4. Other'
 )
-bullet('Point out: SUBMIT appears first — the AHEAD methodology says recovery beats imputation; only choose a cleaning option if the report genuinely cannot be found')
+bullet('Point out: SUBMIT appears first — the AHEAD methodology says recovery beats imputation; only choose a cleaning option if the report genuinely cannot be found. Options 2 and 3 are flagged for HQ zero imputation rather than being auto-written.')
 sp()
 
 body('Step 4 — Reply SUBMIT')
@@ -761,7 +1045,7 @@ bullet('Agent sends:')
 mono(
     '[DQ-XXXX] Thanks — checking DHIS2 within the hour.\n'
     'Issue will close automatically once your\n'
-    'report is marked complete.'
+    'submission appears.'
 )
 bullet('Now in DHIS2: navigate to Addi Arekay HC / May 2026, click the Complete button to mark it as formally submitted')
 bullet('Trigger a re-check: POST http://localhost:5001/api/scan?check=missing_reports')
@@ -779,7 +1063,7 @@ bullet('SMS thread: 3 messages — notification, "SUBMIT", acknowledgement, auto
 sp()
 
 h2('Demo D — Issue Log Web App (~3 min)')
-body('What this shows: The standalone supervisor view. George\'s team uses this to monitor all DQ activity across Ethiopia — every issue the agent detected, every SMS sent, every decision made — without ever logging into DHIS2.')
+body('What this shows: The standalone supervisor view. George\'s team uses this to monitor all DQ activity across Ethiopia — every issue the agent detected, every SMS sent, every decision made — without ever logging into DHIS2. The dashboard auto-refreshes every 10 seconds.')
 sp()
 
 body('Step 1 — Open the issue log')
@@ -796,38 +1080,42 @@ sp()
 body('Step 3 — Expand Demo A conversation thread (BCG outlier)')
 bullet('Click expand on the BCG outlier issue (DQ-XXXX)')
 bullet('Show the full SMS thread: timestamps, IN/OUT, each turn')
-bullet('The thread shows: initial notification → "4" (option selected) → follow-up question → "97" (value given) → resolution')
-bullet('Narrate: "This is the audit trail. It captures the same information the Excel dropdown captured — which option was chosen, what the corrected value is — but in real time, with the full conversation history."')
+bullet('The thread shows: initial notification → "4" (option selected) → follow-up question → "97" (value given) → confirmation request → "YES" → resolution')
+bullet('Narrate: "This is the audit trail. It captures the same information the Excel dropdown captured — which option was chosen, what the corrected value is — but in real time, with the full conversation history including the explicit confirmation step."')
 sp()
 
-body('Step 4 — Show the decision schema link')
-bullet('Point out: the issue record shows "Option 4: specific number (97)" — the equivalent of an Excel dropdown selection')
-bullet('Narrate: "Every decision maps directly to the AHEAD response schema that George\'s team already uses. The cleaned dataset output would come from these logged decisions, exactly like it does today from the Excel files."')
+body('Step 4 — Point out the status progression column')
+bullet('Issue record shows status: RESOLVED, and the status history: OPEN → NOTIFIED → IN PROGRESS → CONFIRMING → RESOLVED')
+bullet('Narrate: "The CONFIRMING state is new — it represents the moment between the worker providing a value and actually writing to DHIS2. No data is changed until YES is received. That\'s the key safety guarantee."')
 sp()
 
 body('Expected final state:')
-bullet('Audience has seen the complete loop: facility entry → real-time detection → numbered SMS options → correction applied → audit log with full thread')
-bullet('Issue log shows 3 resolved issues for Addi Arekay HC across two periods, with decision records')
+bullet('Audience has seen the complete loop: facility entry → real-time detection → numbered SMS options → value entry → YES/NO confirmation → correction applied → audit log with full thread')
+bullet('Issue log shows 3 resolved issues for Addi Arekay HC across two periods, with decision records and status progression')
 sp()
 
 h2('Common demo questions and answers')
 tbl(
     ['Question', 'Answer'],
     [
+        ['Why is there a YES/NO confirmation step?',
+         'No data is written to DHIS2 until the worker explicitly confirms. This prevents the agent from applying a value the worker typed by accident and gives a clear moment in the audit trail where the human approved the change.'],
         ['Why numbered options instead of free text?',
-         'These are the same fixed categories in the current AHEAD Excel dropdowns. Using them means the agent captures exactly the same decisions the manual process captures, in a format the AHEAD team already understands.'],
+         'These are the same fixed categories in the current AHEAD reference guide (sections 2.2–2.4). Using them means the agent captures exactly the same decisions the manual process captures, in a format the AHEAD team already understands.'],
         ['What if the facility worker ignores the SMS?',
          'The agent retries every 24h for 3 days. After 72h with no response, it automatically sends a summary to the woreda HMIS officer. No manual escalation needed.'],
         ['Who maintains the phone number list?',
          'The AHEAD team maintains a contacts registry (a simple table mapping each org unit to a phone number). It is loaded into the agent at startup and updated as staff change.'],
         ['Does the facility worker need to install an app?',
-         'No. Standard SMS only. Works on any phone, including basic feature phones without internet.'],
+         'No. Standard SMS only. Works on any phone, including basic feature phones without internet. For the demo, the Twilio WhatsApp sandbox is used; production uses standard SMS.'],
         ['Can the agent send in Amharic?',
          'Not in MVP. Claude can generate Amharic and this is a Phase 2 upgrade pending translation review.'],
         ['What if the agent applies the wrong value?',
-         'The agent logs every numbered option selection and the exact value applied. The issue thread is a complete audit trail. If a mistake is made, the AHEAD team can see it in the log and manually correct in DHIS2.'],
+         'The agent logs every option selection, every confirmed value, and the exact write-back applied. The confirmation step means the facility worker saw and approved the exact change. The issue thread is a complete audit trail. If a mistake is made, the AHEAD team can see it in the log and manually correct in DHIS2.'],
         ['What happens to issues that never get resolved?',
          'They escalate automatically through the hierarchy (facility → woreda → zone → region → national digest) and remain open in the log indefinitely until closed.'],
+        ['What DQ methods does the MVP implement?',
+         'Two of the five AHEAD methods: SD-based outlier detection (Method 1, Z-score > 2.0 SD) and absolute difference checks (Method 5, > 100 doses). DTP consistency uses a 30% relative or 100 absolute dose threshold per the AHEAD guide.'],
     ]
 )
 sp()
