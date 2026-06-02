@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
+import pathlib
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+
+HERE = pathlib.Path(__file__).parent
 
 doc = Document()
 
@@ -106,7 +109,7 @@ from docx.shared import Inches as _Inches
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 run = p.add_run()
-run.add_picture('ahead_pipeline_diagram.png', width=_Inches(5.5))
+run.add_picture(str(HERE / 'ahead_pipeline_diagram.png'), width=_Inches(5.5))
 spacer()
 
 # ── 2. Workflow ───────────────────────────────────────────────────────────────
@@ -364,5 +367,6 @@ bullet('Post-commit vs. pre-commit — is post-commit notification (within minut
 bullet('SMS language — should messages go out in Amharic, English, or both?')
 spacer()
 
-doc.save('AHEAD_AI_MVP_Architecture.docx')
-print('Saved: AHEAD_AI_MVP_Architecture.docx')
+out = HERE / 'AHEAD_AI_MVP_Architecture.docx'
+doc.save(str(out))
+print(f'Saved: {out}')

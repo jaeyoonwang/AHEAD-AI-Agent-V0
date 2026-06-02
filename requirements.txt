@@ -1,1 +1,1 @@
-python-docx>=1.1  # generate_doc.py only — phases 2–5 use stdlib only
+python-docx>=1.1  # docs/generate_*.py only — all other scripts use stdlib only

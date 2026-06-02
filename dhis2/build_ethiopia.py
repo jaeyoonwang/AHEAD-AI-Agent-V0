@@ -20,13 +20,22 @@ Output: ethiopia_uid_map.json
 
 import json, urllib.request, urllib.error, base64, random, string, sys, os, pathlib
 
-_env = pathlib.Path(__file__).with_name('.env')
-if _env.exists():
+def _find_dotenv():
+    p = pathlib.Path(__file__).resolve().parent
+    while p != p.parent:
+        if (p / '.env').exists():
+            return p / '.env'
+        p = p.parent
+
+_env = _find_dotenv()
+if _env:
     for _line in _env.read_text().splitlines():
         _line = _line.strip()
         if _line and not _line.startswith('#') and '=' in _line:
             _k, _, _v = _line.partition('=')
             os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
+
+_UID_MAP = pathlib.Path(__file__).with_name('ethiopia_uid_map.json')
 
 _creds  = f"{os.environ.get('DHIS2_ADMIN_USER', '')}:{os.environ.get('DHIS2_ADMIN_PASS', '')}"
 AUTH    = base64.b64encode(_creds.encode()).decode()
@@ -151,7 +160,7 @@ for woreda_name, woreda_code, facilities in WOREDAS:
 
 # ── Save ──────────────────────────────────────────────────────────────────────
 
-with open('ethiopia_uid_map.json', 'w') as f:
+with open(_UID_MAP, 'w') as f:
     json.dump(uid_map, f, indent=2)
 
 # ── Summary ───────────────────────────────────────────────────────────────────

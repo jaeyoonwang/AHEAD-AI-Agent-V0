@@ -2,12 +2,15 @@
 """Generates AHEAD_AI_Tech_Architecture.docx — MVP implementation specification.
 Run: pip install python-docx && python3 generate_tech_doc.py
 """
+import pathlib
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+
+HERE = pathlib.Path(__file__).parent
 
 doc = Document()
 section = doc.sections[0]
@@ -686,5 +689,6 @@ mono(
 )
 sp()
 
-doc.save('AHEAD_AI_Tech_Architecture.docx')
-print('Saved: AHEAD_AI_Tech_Architecture.docx')
+out = HERE / 'AHEAD_AI_Tech_Architecture.docx'
+doc.save(str(out))
+print(f'Saved: {out}')

@@ -2,12 +2,15 @@
 """Generates AHEAD_AI_UX_Workflow.docx — UX and workflow specification.
 Run: pip install python-docx && python3 generate_ux_doc.py
 """
+import pathlib
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+
+HERE = pathlib.Path(__file__).parent
 
 doc = Document()
 section = doc.sections[0]
@@ -829,5 +832,6 @@ tbl(
 )
 sp()
 
-doc.save('AHEAD_AI_UX_Workflow.docx')
-print('Saved: AHEAD_AI_UX_Workflow.docx')
+out = HERE / 'AHEAD_AI_UX_Workflow.docx'
+doc.save(str(out))
+print(f'Saved: {out}')

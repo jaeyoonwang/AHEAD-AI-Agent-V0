@@ -29,13 +29,23 @@ Output: data_injection_log.json
 import json, urllib.request, urllib.error, base64, random, hashlib, sys, os, pathlib
 from datetime import datetime, timezone
 
-_env = pathlib.Path(__file__).with_name('.env')
-if _env.exists():
+def _find_dotenv():
+    p = pathlib.Path(__file__).resolve().parent
+    while p != p.parent:
+        if (p / '.env').exists():
+            return p / '.env'
+        p = p.parent
+
+_env = _find_dotenv()
+if _env:
     for _line in _env.read_text().splitlines():
         _line = _line.strip()
         if _line and not _line.startswith('#') and '=' in _line:
             _k, _, _v = _line.partition('=')
             os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
+
+_UID_MAP  = pathlib.Path(__file__).with_name('ethiopia_uid_map.json')
+_LOG_FILE = pathlib.Path(__file__).with_name('data_injection_log.json')
 
 _creds  = f"{os.environ.get('DHIS2_ADMIN_USER', '')}:{os.environ.get('DHIS2_ADMIN_PASS', '')}"
 AUTH    = base64.b64encode(_creds.encode()).decode()
@@ -126,7 +136,7 @@ def post_values(ou_uid, period, values):
 
 # ── Load facilities ───────────────────────────────────────────────────────────
 
-with open('ethiopia_uid_map.json') as f:
+with open(_UID_MAP) as f:
     uid_map = json.load(f)
 
 facilities = {}
@@ -171,7 +181,7 @@ for fac_name, fac in facilities.items():
 
 log['generated_at'] = datetime.now(timezone.utc).isoformat()
 
-with open('data_injection_log.json', 'w') as f:
+with open(_LOG_FILE, 'w') as f:
     json.dump(log, f, indent=2)
 
 # ── Summary ───────────────────────────────────────────────────────────────────
