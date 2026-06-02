@@ -16,6 +16,11 @@ venv/
 # Environment / secrets — copy .env.example to .env and fill in values
 .env
 
+# Instance config — copy config.example.py to config.py and update UIDs
+# config.py is NOT a secret but may contain deployment-specific values
+# you don't want to accidentally push to a shared repo
+config.py
+
 # DHIS2 config — copy dhis.conf.example to dhis.conf and fill in password
 dhis.conf
 

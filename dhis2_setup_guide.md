@@ -28,13 +28,19 @@ The prototype covers:
 
 ## Setup
 
-Copy the example files and fill in your credentials before running anything:
+Copy the example files and fill in values before running anything:
 
 ```bash
 cp .env.example .env
 cp dhis.conf.example dhis.conf
-# Edit .env and dhis.conf — set POSTGRES_PASSWORD and DHIS2_USER_PASSWORD
+cp config.example.py config.py
+# Edit .env       — set POSTGRES_PASSWORD, DHIS2_USER_PASSWORD, API keys
+# Edit dhis.conf  — set connection.password to match POSTGRES_PASSWORD
+# Edit config.py  — update DHIS2 UIDs if deploying to a different instance
+#                   (Ethiopia values are pre-filled; no change needed for this prototype)
 ```
+
+**Two-layer config:** `.env` holds secrets (passwords, API keys) — never committed. `config.py` holds instance metadata (DHIS2 UIDs, thresholds) — safe to commit. For a new country deployment, only `config.py` and `DHIS2_BASE_URL` in `.env` need to change.
 
 ---
 

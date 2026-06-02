@@ -326,17 +326,20 @@ mono(
 sp()
 
 h2('contacts')
+body('Phone numbers (and email for Phase 2) are maintained in this table by the AHEAD team, not read from DHIS2 user profiles. George\'s team does not maintain a phone registry inside DHIS2. The email column is nullable and present from day one so adding email in Phase 2 requires no schema migration.')
 mono(
     'CREATE TABLE contacts (\n'
     '  org_unit_uid  TEXT    NOT NULL,\n'
     '  level         INTEGER NOT NULL,  -- 1=national 2=region 3=zone 4=woreda 5=facility\n'
     '  name          TEXT    NOT NULL,  -- person name\n'
-    '  phone         TEXT    NOT NULL,  -- E.164 format\n'
+    '  phone         TEXT,              -- E.164 format; NULL if no SMS contact\n'
+    '  email         TEXT,              -- NULL if no email contact (Phase 2)\n'
     '  PRIMARY KEY (org_unit_uid, level)\n'
     ');\n'
     '\n'
-    '-- Maintained manually by the AHEAD team. Not auto-populated from DHIS2 users.\n'
-    '-- Seeded from a CSV for the prototype (one phone per org unit per level).'
+    '-- At least one of phone or email must be non-null.\n'
+    '-- MVP: agent uses phone only. Email added in Phase 2 with no schema change.\n'
+    '-- Maintained by the AHEAD team; seeded from a CSV for the prototype.'
 )
 sp()
 
@@ -566,9 +569,7 @@ mono(
     '      TWILIO_ACCOUNT_SID:   ${TWILIO_ACCOUNT_SID}\n'
     '      TWILIO_AUTH_TOKEN:    ${TWILIO_AUTH_TOKEN}\n'
     '      TWILIO_FROM_NUMBER:   ${TWILIO_FROM_NUMBER}\n'
-    '      OUTLIER_THRESHOLD:    3.0\n'
-    '      POLL_INTERVAL_SEC:    30\n'
-    '      MISSING_REPORT_START_DAY: 10\n'
+    '      # Thresholds and timers live in config.py, not here\n'
     '    depends_on:\n'
     '      - web\n'
     '    restart: unless-stopped\n'
@@ -583,67 +584,105 @@ mono(
 )
 sp()
 
-# ── 12. Environment Variables ─────────────────────────────────────────────────
-h1('12. Environment Variables')
-body('All secrets and configurable parameters live in .env in the project root. Both the setup scripts and the agent container read from this file at startup.')
+# ── 12. Configuration: Two-Layer Approach ────────────────────────────────────
+h1('12. Configuration: Two-Layer Approach')
+body('Configuration is split into two files by type: secrets in .env (never committed), and instance metadata in config.py (safe to commit). This separation means deploying to a new country or DHIS2 instance requires only updating config.py — no secrets need to change unless you are also changing your API provider accounts.')
+sp()
+mono(
+    '.env          ← secrets and runtime URLs (never commit)\n'
+    'config.py     ← instance UIDs, thresholds, hierarchy settings (safe to commit)\n'
+    '\n'
+    'For a new country deployment:\n'
+    '  1. Update config.py with the country\'s DHIS2 UIDs\n'
+    '  2. Set DHIS2_BASE_URL in .env to the country\'s DHIS2 URL\n'
+    '  3. Set AGENT_USER / AGENT_PASS for the agent_service account on that instance\n'
+    '  4. Seed the contacts table with that country\'s phone numbers\n'
+    '  That\'s it — no code changes required.'
+)
+sp()
+
+h2('12a.  Secrets (.env)')
+body('Passwords, API keys, and deployment URLs. Never committed to version control. Copy .env.example to .env and fill in values before running anything.')
 sp()
 tbl(
     ['Variable', 'Used by', 'Description'],
     [
-        ['DHIS2_BASE_URL',       'Setup scripts, Agent', 'http://localhost:8080/api (setup) or http://web:8080/api (Docker runtime)'],
-        ['DHIS2_ADMIN_USER',     'Setup scripts only',   'DHIS2 admin username for phases 2–5 setup'],
+        ['DHIS2_BASE_URL',       'Setup scripts, Agent', 'http://localhost:8080/api (local) or http://web:8080/api (Docker internal)'],
+        ['DHIS2_ADMIN_USER',     'Setup scripts only',   'DHIS2 admin username (demo setup only)'],
         ['DHIS2_ADMIN_PASS',     'Setup scripts only',   'DHIS2 admin password'],
-        ['DHIS2_USER_PASSWORD',  'Setup scripts only',   'Shared password for all demo role-based user accounts'],
+        ['DHIS2_USER_PASSWORD',  'Setup scripts only',   'Shared password for demo role-based user accounts'],
         ['AGENT_USER',           'Agent',                'DHIS2 agent_service username'],
         ['AGENT_PASS',           'Agent',                'DHIS2 agent_service password'],
         ['CLAUDE_API_KEY',       'Agent',                'Anthropic API key'],
         ['TWILIO_ACCOUNT_SID',   'Agent',                'Twilio account SID'],
         ['TWILIO_AUTH_TOKEN',    'Agent',                'Twilio auth token'],
         ['TWILIO_FROM_NUMBER',   'Agent',                'Twilio sending phone number (E.164 format)'],
-        ['OUTLIER_THRESHOLD',    'Agent',                'Z-score threshold for outlier detection (default: 3.0)'],
-        ['POLL_INTERVAL_SEC',    'Agent',                'lastUpdated poll interval in seconds (default: 30). DQ checks only fire when changes are found — this controls detection latency, not API cost.'],
-        ['MISSING_REPORT_START_DAY', 'Agent',             'Day of the following month to begin checking for missing reports (default: 10). Set this to match your program\'s data-entry deadline. George\'s team should confirm the exact deadline for Ethiopia before going live.'],
-        ['POSTGRES_DB',          'docker-compose.yml',   'PostgreSQL database name (DHIS2 only)'],
+        ['POSTGRES_DB',          'docker-compose.yml',   'PostgreSQL database name (DHIS2 internal)'],
         ['POSTGRES_USER',        'docker-compose.yml',   'PostgreSQL username'],
         ['POSTGRES_PASSWORD',    'docker-compose.yml',   'PostgreSQL password'],
     ]
 )
 sp()
 
+h2('12b.  Instance metadata (config.py)')
+body('DHIS2 UIDs, DQ thresholds, hierarchy settings, and timers. Country-specific but not secret — safe to commit. Copy config.example.py to config.py. For a new country deployment, update the UIDs by querying the target DHIS2 instance\'s API; everything else can stay at its default until the country team requests tuning.')
+sp()
+tbl(
+    ['Parameter', 'Default (Ethiopia)', 'Description'],
+    [
+        ['ROOT_ORG_UNIT_UID',   'RFhqluFmvRG',  'Top-level org unit the agent scans. Find via GET /api/organisationUnits?level=1'],
+        ['FACILITY_LEVEL',      '5',             'Level number of facilities. Ethiopia is 5-level; a 4-level country uses 4.'],
+        ['ROUTINE_DATASET_UID', 'vI4ihClxSm4',  'EPI routine vaccine delivery dataset UID. Find via GET /api/dataSets?filter=name:like:EPI'],
+        ['DATA_ELEMENTS',       '(dict)',        'UIDs for BCG, Penta1, Penta3, MR1. Find via GET /api/dataElements?filter=name:like:BCG'],
+        ['CATEGORY_OPTION_COMBOS', '(dict)',     'UIDs for under-1 and >= 1 year age disaggregations'],
+        ['OUTLIER_Z_THRESHOLD', '3.0',           'Z-score threshold for outlier detection'],
+        ['OUTLIER_ABS_THRESHOLD','100',           'Absolute dose difference from mean (AHEAD method 5 proxy)'],
+        ['OUTLIER_MIN_HISTORY_MONTHS', '3',      'Minimum months of history before outlier detection runs for a facility'],
+        ['DTP_THRESHOLDS',      '(dict)',        'Relative and absolute thresholds by data level (facility/admin2, monthly/annual)'],
+        ['MISSING_REPORT_START_DAY', '10',       'Day of following month to begin missing report checks. Confirm deadline with country team.'],
+        ['RETRY_INTERVAL_HOURS', '24',           'Hours between retries at facility level'],
+        ['MAX_RETRIES',         '3',             'Retries before escalation (72h total at default)'],
+        ['ESCALATION_DAYS',     '(dict)',        'Days at each level before escalating: woreda=3, zone=10, region=17'],
+        ['POLL_INTERVAL_SEC',   '30',            'lastUpdated poll frequency. Controls detection latency, not API cost.'],
+    ]
+)
+sp()
+
 # ── 13. End-to-End Walkthrough ────────────────────────────────────────────────
 h1('13. End-to-End Walkthrough: Outlier Scenario')
-body('Limalimo Health Post (Janamora Woreda) submits EPI data for April 2026 with BCG under-1 = 350. Normal range for a health post is 30–45. The following traces the full agent lifecycle.')
+body('eth_facility_01 (Almaz Tadesse, Addi Arekay Health Center) submits June 2026 EPI data with BCG under-1 = 970. Correct value is 97 — an extra zero. 22-month baseline mean is ~97. The following traces the full agent lifecycle.')
 sp()
 mono(
-    'T+0:00  Facility worker submits form in DHIS2 (as any authenticated DHIS2 user)\n'
+    'T+0:00  eth_facility_01 submits June 2026 form in DHIS2\n'
     '         Data lands in datavalue table immediately\n'
     '\n'
     'T+0:30  poll_changes fires\n'
-    '  → GET /api/dataValueSets?...&lastUpdated={T+0:00} → Limalimo HP / 202604 returned\n'
-    '  → run_dq_checks triggered for (PunEEFHArGE, 202604)\n'
-    '  → GET /api/outlierDetection?ou=PunEEFHArGE&... → BCG <1yr, value=350, z=8.4\n'
-    '  → dedup check: no open issue for (PunEEFHArGE, 202604, outlier, WSy7zOZx1Wl)\n'
+    '  → GET /api/dataValueSets?...&lastUpdated={T+0:00} → Addi Arekay HC / 202606 returned\n'
+    '  → run_dq_checks triggered for (aV3ume00zx5, 202606)  ← Addi Arekay HC UID\n'
+    '  → GET /api/outlierDetection?ou=aV3ume00zx5&... → BCG <1yr, value=970, z=~87\n'
+    '  → dedup check: no open issue for (aV3ume00zx5, 202606, outlier, BCG)\n'
     '  → INSERT INTO issues (id=\'DQ-AX42\', status=\'notified\', ...)\n'
-    '  → SELECT phone FROM contacts WHERE org_unit_uid=\'PunEEFHArGE\' AND level=5\n'
-    '  → POST Twilio → SMS sent to facility worker\n'
+    '  → SELECT phone FROM contacts WHERE org_unit_uid=\'aV3ume00zx5\' AND level=5\n'
+    '  → POST Twilio → numbered-option SMS sent to facility worker\'s phone\n'
     '  → INSERT INTO conversations (direction=\'outbound\', body=\'[DQ-AX42] ...\')\n'
     '\n'
-    'T+2:14  Worker replies: "no wait, should be 53"\n'
-    '  → Twilio → POST /webhook/sms (From=+251..., Body="no wait, should be 53")\n'
-    '  → regex: no ref ID in body → check if From has one open issue → DQ-AX42\n'
-    '  → Claude parse: {"intent": "correct", "value": 53}\n'
-    '  → UPDATE issues SET status=\'awaiting_confirm\', proposed_value=\'53\'\n'
-    '  → Send SMS: "[DQ-AX42] Confirm: BCG under-1 at Limalimo HP Apr 2026: 350→53. YES to apply."\n'
-    '  → INSERT INTO conversations (direction=\'inbound\', ...)\n'
-    '  → INSERT INTO conversations (direction=\'outbound\', ...)\n'
+    'T+0:31  Almaz receives SMS with 6 numbered options (see UX doc Section 3.1)\n'
     '\n'
-    'T+2:15  Worker replies: "YES"\n'
-    '  → POST /api/dataValueSets (as agent_service) → DHIS2 returns 200\n'
-    '  → UPDATE issues SET status=\'resolved\', resolved_value=\'53\', resolved_at=now()\n'
-    '  → Send SMS: "[DQ-AX42] Done. BCG under-1 updated to 53. Issue closed."\n'
-    '  → Re-run outlier check for Limalimo HP / 202604 → no violations returned\n'
+    'T+1:00  Almaz replies: "4"\n'
+    '  → Twilio → POST /webhook/sms (From=+251..., Body="4")\n'
+    '  → regex finds DQ-AX42 (or matches by phone to single open issue)\n'
+    '  → Claude parse: {"option": 4, "followup_value": null, "state": "option_selected"}\n'
+    '  → UPDATE issues SET status=\'awaiting_followup\', selected_option=\'4\'\n'
+    '  → Send follow-up: "[DQ-AX42] Option 4: replace with specific number. Reply with correct BCG under-1."\n'
     '\n'
-    'T+2:16  Issue DQ-AX42 visible in /issues page as Resolved'
+    'T+1:01  Almaz replies: "97"\n'
+    '  → Claude parse: {"option": 4, "followup_value": "97", "state": "followup_provided"}\n'
+    '  → POST /api/dataValueSets (as agent_service, value=97) → DHIS2 returns 200\n'
+    '  → UPDATE issues SET status=\'resolved\', resolved_value=\'97\', resolved_at=now()\n'
+    '  → Send resolution: "[DQ-AX42] Done. BCG under-1 updated to 97. Decision logged. Issue closed."\n'
+    '  → Re-run outlier check for Addi Arekay HC / 202606 → no violations (z-score now ~0)\n'
+    '\n'
+    'T+1:02  Issue DQ-AX42 visible in /issues page as Resolved'
 )
 sp()
 
