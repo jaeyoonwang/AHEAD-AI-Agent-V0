@@ -80,7 +80,17 @@ def period_label(period_str):
 
 def build_outlier_message(ref_id, facility_name, period, antigen,
                           value, expected_low, expected_high):
-    """6-option outlier alert (AHEAD Excel dropdown schema)."""
+    """
+    6-option outlier alert matching the AHEAD Excel dropdown schema (section 2.2).
+
+    Options:
+      1. Replace with 6-month average  (agent auto-computes, asks for confirmation)
+      2. Keep as-is                    (no data change)
+      3. Set to zero                   (agent writes 0)
+      4. Replace with specific value   (user provides the number)
+      5. At health facility doses only (noted, manual adjustment by HQ)
+      6. Outreach doses only           (noted, manual adjustment by HQ)
+    """
     if expected_low is not None and expected_high is not None:
         exp = f'{max(0, int(expected_low))}–{int(expected_high)}'
     else:
@@ -91,34 +101,56 @@ def build_outlier_message(ref_id, facility_name, period, antigen,
         f'{antigen}: {int(value)} doses (expected {exp})\n'
         f'\n'
         f'Reply with option number:\n'
-        f'1. Confirmed correct\n'
-        f'2. Data entry error — I will correct in DHIS2\n'
-        f'3. Stock/supply issue\n'
-        f'4. Correct value is [reply with number]\n'
-        f'5. Campaign doses included\n'
-        f'6. Other reason'
+        f'1. Replace with 6-month average\n'
+        f'2. Keep as-is (no action)\n'
+        f'3. Set to zero\n'
+        f'4. Replace with specific value\n'
+        f'5. At health facility doses only\n'
+        f'6. Outreach doses only'
     )
 
 
 def build_dtp_message(ref_id, facility_name, period, penta1, penta3):
-    """5-option DTP consistency alert."""
+    """
+    5-option DTP1/DTP3 consistency alert matching AHEAD Excel dropdown schema (section 2.4).
+
+    Options:
+      1. Keep as-is              (no data change)
+      2. Use DTP1 value for both (sets DTP3 = DTP1; agent auto-applies)
+      3. Use DTP3 value for both (sets DTP1 = DTP3; agent auto-applies)
+      4. Replace with specific value (user provides the corrected value)
+      5. Other                   (noted, no automatic change)
+    """
     diff_pct = round(abs((penta3 - penta1) / penta1) * 100) if penta1 else 0
+    direction = 'DTP3 > DTP1' if penta3 > penta1 else 'DTP1 > DTP3'
     return (
         f'AHEAD DQ Alert [{ref_id}]\n'
         f'{facility_name} — {period_label(period)}\n'
-        f'DTP1={int(penta1)}, DTP3={int(penta3)} (gap: {diff_pct}%)\n'
+        f'DTP1={int(penta1)}, DTP3={int(penta3)} ({direction}, gap: {diff_pct}%)\n'
         f'\n'
         f'Reply with option number:\n'
-        f'1. Confirmed correct\n'
-        f'2. Catch-up campaign included\n'
-        f'3. Data entry error — I will correct in DHIS2\n'
-        f'4. Correct DTP3 value is [reply with number]\n'
+        f'1. Keep as-is (no action)\n'
+        f'2. Use DTP1 value for both\n'
+        f'3. Use DTP3 value for both\n'
+        f'4. Replace with specific value\n'
         f'5. Other reason'
     )
 
 
 def build_missing_message(ref_id, facility_name, period):
-    """SUBMIT keyword + 4-option missing report alert."""
+    """
+    SUBMIT keyword + 4-option missing report alert (section 2.3).
+
+    Recovery first — the primary goal is to get the report submitted.
+    Cleaning options (average/zero/specific) apply only if recovery fails.
+
+    Options:
+      SUBMIT  Already submitted — agent acknowledges
+      1.      Will submit by [date] (recovery)
+      2.      Data cannot be recovered — HQ will impute (6-month average)
+      3.      Facility closed / no service that month (agent sets to zero)
+      4.      Other
+    """
     return (
         f'AHEAD DQ Alert [{ref_id}]\n'
         f'{facility_name} — {period_label(period)}\n'
@@ -126,21 +158,21 @@ def build_missing_message(ref_id, facility_name, period):
         f'\n'
         f'Reply SUBMIT if already submitted, or:\n'
         f'1. Will submit by [date]\n'
-        f'2. Data lost or damaged\n'
-        f'3. No internet access\n'
+        f'2. Data cannot be recovered\n'
+        f'3. Facility closed / no service that month\n'
         f'4. Other reason'
     )
 
 
 def build_followup_prompt(issue_type, selected_option):
     """
-    Prompt sent when the selected option requires a follow-up value.
-    Returns None if no follow-up is needed for this option.
+    Prompt sent when the selected option requires the user to provide a value.
+    Returns None if the option resolves immediately or is auto-computed.
     """
     if issue_type == 'outlier' and selected_option == 4:
         return 'Please reply with the correct value (numbers only, e.g. 97).'
     if issue_type == 'dtp' and selected_option == 4:
-        return 'Please reply with the correct DTP3 value (numbers only).'
+        return 'Please reply with the correct value (numbers only).'
     if issue_type == 'missing' and selected_option == 1:
         return 'Please reply with the expected submission date (e.g. 15 Jun).'
     return None

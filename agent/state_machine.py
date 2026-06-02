@@ -110,52 +110,167 @@ def _parse_followup_value(text, issue_type, selected_option):
 
 # ── Resolution logic ──────────────────────────────────────────────────────────
 
+# Immediate-resolution options (no follow-up, no write-back needed).
+# Option numbers map to the AHEAD Excel dropdown schema from the reference guide.
 _ACTION_NOTES = {
     'outlier': {
-        1: 'Value confirmed correct. No action taken.',
-        2: 'Data entry error noted. Please correct in DHIS2.',
-        3: 'Stock/supply issue recorded.',
-        5: 'Campaign doses recorded.',
-        6: 'Reason recorded.',
+        2: 'Confirmed correct. No data change.',
+        5: 'At-facility doses only. Noted for HQ manual adjustment.',
+        6: 'Outreach doses only. Noted for HQ manual adjustment.',
     },
     'dtp': {
-        1: 'Values confirmed correct. No action taken.',
-        2: 'Catch-up campaign recorded.',
-        3: 'Data entry error noted. Please correct in DHIS2.',
-        5: 'Reason recorded.',
+        1: 'Confirmed correct. No data change.',
+        5: 'Reason recorded. No automatic data change.',
     },
     'missing': {
-        2: 'Data loss recorded.',
-        3: 'Connectivity issue recorded.',
+        2: 'Data loss recorded. Flagged for HQ imputation (6-month average).',
         4: 'Reason recorded.',
     },
 }
 
+# Options that go directly from option selection to confirmation (auto-computed value,
+# no user input needed). Handled in _compute_auto_action().
+_AUTO_CONFIRM_OPTIONS = {
+    ('outlier', 1),   # replace with 6-month average
+    ('outlier', 3),   # set to zero
+    ('dtp',     2),   # use DTP1 value for both → set Penta3 = Penta1
+    ('dtp',     3),   # use DTP3 value for both → set Penta1 = Penta3
+    ('missing', 3),   # facility closed → set all vaccines to zero (recorded, manual HQ step)
+}
 
-def _write_back_correction(issue, value):
+# Options that need a user-provided follow-up value before confirmation.
+_NEEDS_FOLLOWUP = {
+    ('outlier', 4),   # replace with specific value
+    ('dtp',     4),   # replace with specific value
+    ('missing', 1),   # will submit by [date]
+}
+
+
+def _compute_auto_action(issue, option):
     """
-    Write a corrected value back to DHIS2 and return an action note string.
-    outlier option 4 → corrects the flagged antigen
-    dtp     option 4 → corrects Penta3
+    For options that can be auto-computed without user input, compute the target
+    value and return (value_str, description). Returns None if computation fails.
     """
     de_map = cfg.DATA_ELEMENTS
     coc    = cfg.CATEGORY_OPTION_COMBOS.get('under_1', '')
+    t      = issue['issue_type']
 
-    de_uid = (de_map.get(issue['data_element']) if issue['issue_type'] == 'outlier'
-              else de_map.get('Penta3'))
-    if not de_uid:
-        return f'Correction noted ({value}). Manual update may be needed.'
-
-    try:
-        dc.post_data_value(
-            de_uid, issue['facility_uid'], issue['period'],
-            coc, value,
-            comment=f'Corrected via AHEAD DQ [{issue["ref_id"]}]'
+    if t == 'outlier' and option == 1:
+        # Replace with 6-month average (surrounding periods)
+        de_uid = de_map.get(issue['data_element'])
+        if not de_uid:
+            return None
+        avg = dc.compute_surrounding_average(
+            cfg.ROUTINE_DATASET_UID, de_uid,
+            issue['facility_uid'], issue['period'], coc
         )
-        return f'Value corrected to {value} in DHIS2.'
-    except Exception as e:
-        print(f'[SM] write-back error: {e}')
-        return f'Correction noted ({value}). Manual update may be needed.'
+        if avg is None:
+            return None
+        return str(avg), f'Replace with 6-month average ({avg})'
+
+    if t == 'outlier' and option == 3:
+        return '0', 'Set to zero'
+
+    if t == 'dtp' and option == 2:
+        # Use DTP1 for both: set Penta3 = Penta1 value (stored in expected_low)
+        p1_val = issue['expected_low']
+        if p1_val is None:
+            return None
+        val = str(int(p1_val))
+        return val, f'Set DTP3 to match DTP1 ({val})'
+
+    if t == 'dtp' and option == 3:
+        # Use DTP3 for both: set Penta1 = Penta3 value (stored in flagged_value)
+        p3_val = issue['flagged_value']
+        if p3_val is None:
+            return None
+        val = str(int(p3_val))
+        return val, f'Set DTP1 to match DTP3 ({val})'
+
+    if t == 'missing' and option == 3:
+        # Facility closed — record only; HQ handles zero imputation across all vaccines
+        return 'closed', 'Facility closed / no service that month'
+
+    return None
+
+
+def _build_auto_confirmation_prompt(issue, option, value, description):
+    """Confirmation message for auto-computed corrections (no user input needed)."""
+    ref = issue['ref_id']
+    fac = issue['facility_name']
+    per = period_label(issue['period'])
+    t   = issue['issue_type']
+
+    if t == 'outlier' and option == 3:
+        old = int(issue['flagged_value']) if issue['flagged_value'] else '?'
+        return (
+            f'[{ref}] Confirm: set {issue["data_element"]} <1yr to 0\n'
+            f'{fac} ({per}) — current value: {old}\n\n'
+            f'Reply YES to update DHIS2 or NO to choose again.'
+        )
+    if t == 'missing' and option == 3:
+        return (
+            f'[{ref}] Confirm: record facility closure for {fac} ({per}).\n'
+            f'This will be flagged for HQ to apply zero imputation.\n\n'
+            f'Reply YES to confirm or NO to choose again.'
+        )
+    # Generic format for average, DTP set-both
+    return (
+        f'[{ref}] Confirm: {description}\n'
+        f'{fac} ({per})\n\n'
+        f'Reply YES to update DHIS2 or NO to choose again.'
+    )
+
+
+def _execute_write_back(issue, selected_option, value):
+    """
+    Execute the confirmed write-back for options that modify DHIS2 data.
+    Returns an action note string describing what was done.
+    """
+    de_map = cfg.DATA_ELEMENTS
+    coc    = cfg.CATEGORY_OPTION_COMBOS.get('under_1', '')
+    t      = issue['issue_type']
+    ref    = issue['ref_id']
+
+    def _write(de_uid, val, note):
+        try:
+            dc.post_data_value(
+                de_uid, issue['facility_uid'], issue['period'],
+                coc, val, comment=f'AHEAD DQ correction [{ref}]'
+            )
+            return note
+        except Exception as e:
+            print(f'[SM] write-back error: {e}')
+            return f'Correction noted ({val}). Manual update required.'
+
+    if t == 'outlier':
+        de_uid = de_map.get(issue['data_element'])
+        if not de_uid:
+            return f'Configuration error: unknown element {issue["data_element"]}.'
+        if selected_option == 1:
+            return _write(de_uid, value, f'Replaced with 6-month average ({value}) in DHIS2.')
+        if selected_option == 3:
+            return _write(de_uid, '0', 'Set to zero in DHIS2.')
+        if selected_option == 4:
+            return _write(de_uid, value, f'Value corrected to {value} in DHIS2.')
+
+    if t == 'dtp':
+        p1_uid = de_map.get('Penta1')
+        p3_uid = de_map.get('Penta3')
+        if selected_option == 2:
+            return _write(p3_uid, value, f'DTP3 set to match DTP1 ({value}) in DHIS2.')
+        if selected_option == 3:
+            return _write(p1_uid, value, f'DTP1 set to match DTP3 ({value}) in DHIS2.')
+        if selected_option == 4:
+            return _write(p3_uid, value, f'DTP3 corrected to {value} in DHIS2.')
+
+    if t == 'missing':
+        if selected_option == 1:
+            return f'Expected submission date recorded: {value}.'
+        if selected_option == 3:
+            return 'Facility closure confirmed. Flagged for HQ zero imputation.'
+
+    return f'Value recorded: {value}.'
 
 
 def _build_issue_message(issue):
@@ -262,20 +377,16 @@ def notify_issue(ref_id):
 
 # ── Public: handle inbound SMS ────────────────────────────────────────────────
 
-# Options that require a write-back confirmation step
-_NEEDS_CONFIRM = {('outlier', 4), ('dtp', 4), ('missing', 1)}
-
-
 def handle_inbound(from_phone, text):
     """
     Process an inbound SMS reply. Returns the reply text to send back,
     or None if the sender has no active conversation.
 
     Conversation states:
-      awaiting_option      → user picks a numbered option
-      awaiting_followup    → user provides a value (correct dose count, date, etc.)
-      awaiting_confirmation → user confirms YES/NO before DHIS2 write-back
-      closed               → done
+      awaiting_option       user picks a numbered option
+      awaiting_followup     user provides a value (dose count, date, etc.)
+      awaiting_confirmation user confirms YES/NO before any DHIS2 write
+      closed                done
     """
     with get_conn() as conn:
         conv = get_active_conversation(conn, from_phone)
@@ -292,7 +403,7 @@ def handle_inbound(from_phone, text):
         body   = text.strip()
         state  = conv['state']
 
-        # Mark issue as in-progress the moment any reply arrives
+        # Mark issue as in-progress on first reply
         if issue['status'] == 'open':
             conn.execute(
                 "UPDATE issues SET status='in_progress' WHERE ref_id=?", (ref_id,)
@@ -301,7 +412,7 @@ def handle_inbound(from_phone, text):
         # ── awaiting_option ──────────────────────────────────────────────────
         if state == 'awaiting_option':
 
-            # SUBMIT keyword for missing reports
+            # SUBMIT keyword for missing reports (recovery path)
             if issue['issue_type'] == 'missing' and body.upper() == 'SUBMIT':
                 _resolve(conn, conv['id'], ref_id, 'resolved', 'Submission acknowledged.')
                 return build_confirmation(ref_id, 'Submission acknowledged.')
@@ -311,8 +422,9 @@ def handle_inbound(from_phone, text):
                 n = _OPTION_COUNTS.get(issue['issue_type'], 6)
                 return f'[{ref_id}] Please reply with a number 1–{n}.'
 
-            followup = build_followup_prompt(issue['issue_type'], option)
-            if followup:
+            # Option needs user-provided value first
+            if (issue['issue_type'], option) in _NEEDS_FOLLOWUP:
+                followup = build_followup_prompt(issue['issue_type'], option)
                 conn.execute(
                     "UPDATE conversations SET state='awaiting_followup', "
                     "selected_option=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
@@ -320,9 +432,23 @@ def handle_inbound(from_phone, text):
                 )
                 return followup
 
-            # No follow-up needed — resolve immediately
+            # Option can be auto-computed → go straight to confirmation
+            if (issue['issue_type'], option) in _AUTO_CONFIRM_OPTIONS:
+                result = _compute_auto_action(issue, option)
+                if result is None:
+                    return (f'[{ref_id}] Could not compute automatic correction '
+                            f'(insufficient history). Please choose another option.')
+                value, description = result
+                conn.execute(
+                    "UPDATE conversations SET state='awaiting_confirmation', "
+                    "selected_option=?, followup_value=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (option, value, conv['id'])
+                )
+                return _build_auto_confirmation_prompt(issue, option, value, description)
+
+            # Immediate resolution — no write-back
             action = _ACTION_NOTES.get(issue['issue_type'], {}).get(option, 'Response recorded.')
-            status = 'ignored' if option == 1 else 'resolved'
+            status = 'ignored' if option in (1, 2) and issue['issue_type'] != 'missing' else 'resolved'
             _resolve(conn, conv['id'], ref_id, status, action)
             return build_confirmation(ref_id, action)
 
@@ -338,20 +464,12 @@ def handle_inbound(from_phone, text):
                 'UPDATE conversations SET followup_value=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
                 (value, conv['id'])
             )
-
-            # Options that change DHIS2 data go through a confirmation step
-            if (issue['issue_type'], selected) in _NEEDS_CONFIRM:
-                conn.execute(
-                    "UPDATE conversations SET state='awaiting_confirmation', "
-                    "updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                    (conv['id'],)
-                )
-                return _build_confirmation_prompt(issue, value, selected)
-
-            # All other follow-ups resolve directly
-            action = f'Value recorded: {value}.'
-            _resolve(conn, conv['id'], ref_id, 'resolved', action)
-            return build_confirmation(ref_id, action)
+            conn.execute(
+                "UPDATE conversations SET state='awaiting_confirmation', "
+                "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (conv['id'],)
+            )
+            return _build_confirmation_prompt(issue, value, selected)
 
         # ── awaiting_confirmation ────────────────────────────────────────────
         elif state == 'awaiting_confirmation':
@@ -360,27 +478,21 @@ def handle_inbound(from_phone, text):
             clean    = body.upper().strip()
 
             if clean in ('YES', 'Y', 'CONFIRM', 'OK'):
-                # Execute the write-back
-                if issue['issue_type'] in ('outlier', 'dtp') and selected == 4:
-                    action = _write_back_correction(issue, value)
-                elif issue['issue_type'] == 'missing' and selected == 1:
-                    action = f'Expected submission date recorded: {value}.'
-                else:
-                    action = f'Value recorded: {value}.'
+                action = _execute_write_back(issue, selected, value)
                 _resolve(conn, conv['id'], ref_id, 'resolved', action)
                 return build_confirmation(ref_id, action)
 
             elif clean in ('NO', 'N', 'CANCEL'):
-                # Reset to awaiting_followup so they can re-enter
+                # Go back to option selection — re-send the original alert
                 conn.execute(
-                    "UPDATE conversations SET state='awaiting_followup', "
+                    "UPDATE conversations SET state='awaiting_option', selected_option=NULL, "
                     "followup_value=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                     (conv['id'],)
                 )
-                return build_followup_prompt(issue['issue_type'], selected)
+                return _build_issue_message(issue)
 
             else:
-                return f'[{ref_id}] Please reply YES to confirm or NO to re-enter.'
+                return f'[{ref_id}] Please reply YES to confirm or NO to choose again.'
 
     return None
 

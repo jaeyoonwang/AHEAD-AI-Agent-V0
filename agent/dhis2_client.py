@@ -230,6 +230,40 @@ def post_data_value(data_element_uid, org_unit_uid, period,
     return r
 
 
+def compute_surrounding_average(dataset_uid, de_uid, ou_uid, period, coc_uid, n_months=3):
+    """
+    Compute the mean value of a data element for n_months before and after the
+    flagged period, excluding the period itself. Used for the AHEAD 'replace with
+    6-month average' correction option (outlier section 2.2).
+
+    Returns the average as a rounded float, or None if fewer than 2 surrounding
+    data points exist (insufficient history to compute a meaningful average).
+    """
+    year, month = int(period[:4]), int(period[4:6])
+
+    def shift(y, m, delta):
+        m += delta
+        y += (m - 1) // 12
+        m  = (m - 1) % 12 + 1
+        return y, m
+
+    values = []
+    for delta in list(range(-n_months, 0)) + list(range(1, n_months + 1)):
+        y, m = shift(year, month, delta)
+        p = f'{y}{m:02d}'
+        try:
+            dvs = get_data_values(dataset_uid, ou_uid, p)
+            val = dvs.get((de_uid, coc_uid))
+            if val is not None:
+                values.append(val)
+        except Exception:
+            pass
+
+    if len(values) < 2:
+        return None
+    return round(sum(values) / len(values), 1)
+
+
 def health_check():
     """Return True if DHIS2 is reachable and agent_service can authenticate."""
     try:

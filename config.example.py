@@ -61,8 +61,8 @@ CATEGORY_OPTION_COMBOS = {
 # Note: the full 5-method AHEAD ensemble (SD, MAD, Median AD, Lowess,
 # Absolute diff) is Phase 2. MVP uses DHIS2 built-in Z-score + the
 # absolute threshold below as a supplementary check.
-OUTLIER_Z_THRESHOLD   = 3.0    # Standard deviations from facility mean
-OUTLIER_ABS_THRESHOLD = 100    # Raw dose difference from mean (method 5 proxy)
+OUTLIER_Z_THRESHOLD   = 2.0    # AHEAD guide Table 1: > 2 SD from mean (method 1)
+OUTLIER_ABS_THRESHOLD = 100    # AHEAD guide Table 1: > 100 dose difference (method 5)
 
 # Minimum months of history a facility must have before outlier detection
 # runs. Facilities below this threshold are skipped and logged as

@@ -56,9 +56,11 @@ def check_outliers(changed_pairs=None):
     changed_pairs: set of (org_unit_uid, period_str) to filter on.
                    If None, all outliers in the scan window are evaluated.
 
-    A value is flagged only if BOTH conditions hold:
-      1. Z-score exceeds OUTLIER_Z_THRESHOLD (DHIS2 filters this for us)
-      2. Absolute deviation from mean exceeds OUTLIER_ABS_THRESHOLD (method 5 proxy)
+    The AHEAD guide specifies 5 detection methods (SD, MAD, Median AD, Lowess,
+    Absolute Diff). This MVP implements methods 1 (Z-score/SD) and 5 (absolute
+    difference). A value is flagged if EITHER method fires — matching the guide's
+    "1+ methods = possible outlier" tier. Thresholds are config; see OUTLIER_Z_THRESHOLD
+    and OUTLIER_ABS_THRESHOLD in config.py.
 
     Returns list of newly created ref_ids.
     """
@@ -96,10 +98,14 @@ def check_outliers(changed_pairs=None):
             if not de_name:
                 continue  # not a tracked antigen
 
-            # Apply absolute-deviation filter to reduce false positives on small baselines
-            if value is not None and mean is not None:
-                if abs(value - mean) < cfg.OUTLIER_ABS_THRESHOLD:
-                    continue
+            # Flag if EITHER method fires (OR logic, per AHEAD guide section 2.2).
+            # Method 1 (Z-score) already filtered by get_outliers().
+            # Method 5 (absolute diff > threshold): skip if both pass within bounds.
+            z_flagged   = True  # already passed the Z-score filter in get_outliers()
+            abs_flagged = (value is not None and mean is not None and
+                           abs(value - mean) > cfg.OUTLIER_ABS_THRESHOLD)
+            if not (z_flagged or abs_flagged):
+                continue
 
             if _open_issue_exists(conn, ou_uid, period, de_name, 'outlier'):
                 continue
