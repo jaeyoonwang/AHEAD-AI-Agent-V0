@@ -1,6 +1,6 @@
 # AHEAD AI Agent — Prototype
 
-**Project:** UNICEF AHEAD × Gates Foundation AI Fellows
+**Project:** UNICEF AHEAD × Gates Foundation
 **Scope:** AI agent for immunization data quality monitoring in Ethiopia
 **Status:** Agent fully implemented and tested end-to-end
 
@@ -313,22 +313,32 @@ Refresh the DHIS2 data entry form. The BCG < 1 year field now shows **97** — u
 
 ### Demo B — DTP inconsistency: DTP3 > DTP1
 
-**What this shows:** The agent catches a biologically implausible value combination (more third doses than first doses) and offers to apply the correct fix automatically.
+**What this shows:** The agent catches a biologically implausible value combination — more children received a third dose than a first dose, which is epidemiologically impossible. The agent automatically computes the correction and writes it back to DHIS2 with one confirmation.
 
-**Step 1 — Enter the inconsistent values**
+**Step 1 — Open the data entry form**
 
-In the same June 2026 form (or start fresh after resetting):
+Same form as Demo A, or start fresh after resetting:
 
-- **DPT-HepB-HIB 1** (Penta1) `< 1 year` → type `60`
-- **DPT-HepB-HIB 3** (Penta3) `< 1 year` → type `90`
+**Data Entry** → **Addi Arekay Health Center** → **EPI - Routine vaccine delivery** → **June 2026**
 
-Tab away after each value.
+**Step 2 — Enter the inconsistent values**
 
-> DTP3 = 90 > DTP1 = 60 is epidemiologically impossible: more children cannot complete the series than started it.
+In the **Vaccinations - children** table:
 
-**Step 2 — Receive the DTP alert**
+- **DPT-HepB-HIB 1** row, `< 1 year` column → type **`60`**, press Tab
+- **DPT-HepB-HIB 3** row, `< 1 year` column → type **`90`**, press Tab
 
-Within 30 seconds:
+Both fields turn green (saved).
+
+> **Why this is a DQ issue:** Every child who receives dose 3 must have received doses 1 and 2 first — DTP3 can never exceed DTP1. DTP3 = 90 > DTP1 = 60 means 30 children appear to have completed the series without ever starting it.
+>
+> **The threshold:** relative gap > 30% OR absolute gap > 100 doses. Here |(90 − 60) / 60| = 50% — flagged on the relative condition.
+
+**Step 3 — Watch the issue log**
+
+At [http://localhost:5001/issues](http://localhost:5001/issues), within 30 seconds a new row appears with status **NOTIFIED**.
+
+**Step 4 — Receive the WhatsApp alert**
 
 ```
 AHEAD DQ Alert [DQ-YYYY]
@@ -343,11 +353,11 @@ Reply with option number:
 5. Other reason
 ```
 
-**Step 3 — Select option 2**
+**Step 5 — Select option 2**
 
-Reply **`2`** (use DTP1 = 60 for both doses — DTP1 is typically more reliable).
+Reply **`2`** (set both DTP1 and DTP3 to the DTP1 value — DTP1 is the more reliable count since it's the entry dose).
 
-You receive:
+The issue log updates to **CONFIRMING**. You receive:
 
 ```
 [DQ-YYYY] Confirm: Set DTP3 to match DTP1 (60)
@@ -356,11 +366,17 @@ Addi Arekay Health Center (Jun 2026)
 Reply YES to update DHIS2 or NO to choose again.
 ```
 
-**Step 4 — Confirm**
+**Step 6 — Confirm**
 
 Reply **`YES`**
 
-The agent writes Penta3 = 60 to DHIS2. Issue resolved.
+The agent writes Penta3 = 60 to DHIS2. You receive:
+
+```
+[DQ-YYYY] Noted. DTP3 set to match DTP1 (60) in DHIS2. Thank you.
+```
+
+The issue log updates to **RESOLVED**. Refresh the DHIS2 form — DPT-HepB-HIB 3 now shows **60**.
 
 ---
 

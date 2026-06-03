@@ -146,6 +146,38 @@ if rel_diff > 0.30 or abs_diff > 100:
 | `expected_low` | Penta1 value (stored here for SMS display) |
 | `expected_high` | Penta1 × 1.30 (maximum acceptable Penta3) |
 
+### Example alert message
+
+When Penta1=60 and Penta3=90 are entered for the same facility and period:
+
+```
+AHEAD DQ Alert [DQ-YYYY]
+Addi Arekay Health Center — Jun 2026
+DTP1=60, DTP3=90 (DTP3 > DTP1, gap: 50%)
+
+Reply with option number:
+1. Keep as-is (no action)
+2. Use DTP1 value for both
+3. Use DTP3 value for both
+4. Replace with specific value
+5. Other reason
+```
+
+**Option 2 flow (most common correction — use DTP1 for both):**
+
+```
+Facility: 2
+
+Agent:    [DQ-YYYY] Confirm: Set DTP3 to match DTP1 (60)
+          Addi Arekay Health Center (Jun 2026)
+
+          Reply YES to update DHIS2 or NO to choose again.
+
+Facility: YES
+
+Agent:    [DQ-YYYY] Noted. DTP3 set to match DTP1 (60) in DHIS2. Thank you.
+```
+
 ---
 
 ## Check 3: Missing Reports

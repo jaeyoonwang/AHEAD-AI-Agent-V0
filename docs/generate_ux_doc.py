@@ -948,64 +948,72 @@ bullet('SMS thread: 5 messages — notification, "4", follow-up question, "97", 
 sp()
 
 h2('Demo B — DTP1/DTP3 Inconsistency: Addi Arekay Health Center, Jun 2026 (~5 min)')
-body('What this shows: Almaz accidentally swaps her Penta1 and Penta3 figures. The agent fires — Penta3 > Penta1 by 50%, above the 30% relative threshold for monthly facility data. Same form, same login.')
+body('What this shows: Almaz accidentally enters a higher value for Penta3 (DTP3) than for Penta1 (DTP1). This is biologically impossible — more children cannot have completed the vaccine series than started it. The agent detects the gap (50% relative difference, above the 30% AHEAD threshold), sends an alert with the same response options as the AHEAD Excel dropdown, and automatically corrects the value in DHIS2 after confirmation.')
 sp()
 
-body('Step 1 — Edit the same June 2026 form')
-bullet('Still logged in as eth_facility_01. Navigate back to Addi Arekay HC / June 2026.')
-bullet('BCG is now 97 (corrected in Demo A). The Penta values currently read: Penta1 under-1: 88, Penta3 under-1: 72.')
-bullet('Update: Penta1 under-1 = 60, Penta3 under-1 = 90')
-bullet('Narrate: "Almaz has swapped the Penta1 and Penta3 figures — maybe copied from the wrong row on her tally sheet."')
-bullet('Click Save')
+body('Step 1 — Navigate to the same June 2026 form')
+bullet('Still logged in as eth_facility_01.')
+bullet('Data Entry → Addi Arekay Health Center → EPI - Routine vaccine delivery → June 2026')
 sp()
 
-body('Step 2 — Agent detects the DTP violation (~30 seconds)')
-bullet('Wait or POST http://localhost:5001/api/scan')
-bullet('Agent runs DTP check. Relative difference: (90-60)/60 = 50% — above the 30% threshold. Absolute diff = 30 — below 100 but relative threshold fires.')
-bullet('New issue created and visible in http://localhost:5001/issues as NOTIFIED')
+body('Step 2 — Enter the inconsistent values')
+bullet('In the Vaccinations - children table:')
+bullet('DPT-HepB-HIB 1, < 1 year: type 60, press Tab')
+bullet('DPT-HepB-HIB 3, < 1 year: type 90, press Tab')
+bullet('Both fields turn green (saved).')
+bullet('Narrate: "Almaz copied the figures from her paper tally sheet but swapped the rows. DTP3 = 90 > DTP1 = 60 is epidemiologically impossible — dropout only flows one direction."')
+bullet('Threshold: |(90-60)/60| = 50% relative gap, above the 30% AHEAD facility-monthly threshold.')
 sp()
 
-body('Step 3 — SMS arrives')
+body('Step 3 — Watch the issue log (~30 seconds)')
+bullet('At http://localhost:5001/issues a new row appears: Type=DTP, Facility=Addi Arekay HC, Value=90, Status=NOTIFIED')
+sp()
+
+body('Step 4 — WhatsApp alert arrives')
 mono(
-    'AHEAD DQ Alert [DQ-XXXX]\n'
+    'AHEAD DQ Alert [DQ-YYYY]\n'
     'Addi Arekay Health Center — Jun 2026\n'
-    'Penta1 under-1: 60 | Penta3 under-1: 90\n'
-    'Penta3 exceeds Penta1 by 50%.\n'
+    'DTP1=60, DTP3=90 (DTP3 > DTP1, gap: 50%)\n'
+    '\n'
     'Reply with option number:\n'
-    '1. Keep as-is\n'
+    '1. Keep as-is (no action)\n'
     '2. Use DTP1 value for both\n'
     '3. Use DTP3 value for both\n'
     '4. Replace with specific value\n'
-    '5. Other'
+    '5. Other reason'
 )
-bullet('Narrate: "The 3rd dose cannot exceed the 1st dose — dropout only goes one direction. The agent surfaces the gap (50%) and gives Almaz the same options she\'d see in the AHEAD reference guide."')
+bullet('Narrate: "The options match the AHEAD Excel dropdown exactly — same schema, just delivered by WhatsApp instead of email."')
 sp()
 
-body('Step 4 — Select option 2 (use DTP1 value for both) to demonstrate the confirmation step')
-bullet('Narrate: "Almaz knows that Penta1 (60) is the correct reference. She selects option 2."')
+body('Step 5 — Select option 2 (use DTP1 for both)')
+bullet('Narrate: "Almaz knows Penta1 = 60 is correct. She selects option 2 — agent will set DTP3 to match DTP1."')
 bullet('Reply: 2')
-bullet('Agent sends the YES/NO confirmation (issue log: CONFIRMING):')
+bullet('Issue log updates to CONFIRMING. Agent sends:')
 mono(
-    '[DQ-XXXX] Confirm change:\n'
-    'Penta3 <1yr — Addi Arekay Health Center (Jun 2026)\n'
-    '90 -> 60 (set to DTP1 value)\n'
+    '[DQ-YYYY] Confirm: Set DTP3 to match DTP1 (60)\n'
+    'Addi Arekay Health Center (Jun 2026)\n'
+    '\n'
     'Reply YES to update DHIS2 or NO to choose again.'
 )
+sp()
+
+body('Step 6 — Confirm')
 bullet('Reply: YES')
-bullet('Agent applies and sends:')
+bullet('Agent writes Penta3 = 60 to DHIS2. Issue log updates to RESOLVED. Confirmation:')
 mono(
-    '[DQ-XXXX] Noted. Value corrected to 60 in DHIS2. Thank you.'
+    '[DQ-YYYY] Noted. DTP3 set to match DTP1 (60) in DHIS2. Thank you.'
 )
 sp()
 
-body('Step 5 — Show in DHIS2 and issue log')
-bullet('Refresh Addi Arekay HC / June 2026: Penta3 under-1 = 60 (corrected to match Penta1)')
-bullet('Issue log: DQ-XXXX | DTP3 > DTP1 | Addi Arekay HC | RESOLVED | Option 2: use DTP1 value (60)')
+body('Step 7 — Verify in DHIS2')
+bullet('Refresh the Addi Arekay HC / June 2026 form.')
+bullet('DPT-HepB-HIB 3, < 1 year now shows 60 (updated by agent_service, matching DTP1).')
 sp()
 
 body('Expected final state:')
-bullet('DHIS2: Addi Arekay HC, Jun 2026, Penta1=60, Penta3=60 — Penta3 corrected to match Penta1')
-bullet('SMS thread: 4 messages — notification, "2", confirmation request, "YES", resolution')
+bullet('DHIS2: DTP1=60, DTP3=60 — Penta3 corrected to match Penta1')
+bullet('Issue log: RESOLVED — "DTP3 set to match DTP1 (60) in DHIS2."')
+bullet('SMS thread: 3 turns — alert / "2" / confirmation / "YES" / resolution')
 sp()
 
 h2('Demo C — Missing Report: Addi Arekay Health Center, May 2026 (~4 min)')
