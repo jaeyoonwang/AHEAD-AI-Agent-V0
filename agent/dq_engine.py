@@ -98,14 +98,14 @@ def check_outliers(changed_pairs=None):
             if not de_name:
                 continue  # not a tracked antigen
 
-            # Flag if EITHER method fires (OR logic, per AHEAD guide section 2.2).
-            # Method 1 (Z-score) already filtered by get_outliers().
-            # Method 5 (absolute diff > threshold): skip if both pass within bounds.
-            z_flagged   = True  # already passed the Z-score filter in get_outliers()
-            abs_flagged = (value is not None and mean is not None and
-                           abs(value - mean) > cfg.OUTLIER_ABS_THRESHOLD)
-            if not (z_flagged or abs_flagged):
-                continue
+            # Require BOTH method 1 (Z-score, already filtered by get_outliers()) AND
+            # method 5 (absolute diff). Using OR would flood small health posts:
+            # a facility with mean BCG=2 doses naturally produces Z-scores > 2 from
+            # a single-dose swing, but abs_diff=1 is not a real data quality issue.
+            # AND logic ensures only genuinely large deviations are flagged.
+            if value is not None and mean is not None:
+                if abs(value - mean) < cfg.OUTLIER_ABS_THRESHOLD:
+                    continue
 
             if _open_issue_exists(conn, ou_uid, period, de_name, 'outlier'):
                 continue

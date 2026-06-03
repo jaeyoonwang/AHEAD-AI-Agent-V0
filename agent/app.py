@@ -74,6 +74,19 @@ def _startup():
     else:
         print('[APP] WARNING: DHIS2 not reachable — check DHIS2_BASE_URL and AGENT credentials')
 
+    # Seed poll cursor to now if this is a fresh DB.
+    # Without this, the first poll fetches all historical data as "changes"
+    # and runs DQ on every (facility, period) pair since 2024 — generating
+    # false positive alerts on natural variation in the baseline data.
+    with get_conn() as conn:
+        row = conn.execute("SELECT value FROM poll_state WHERE key='last_checked'").fetchone()
+        if not row:
+            now = dc.now_iso()
+            conn.execute(
+                "INSERT INTO poll_state (key, value) VALUES ('last_checked', ?)", (now,)
+            )
+            print(f'[APP] poll cursor initialised to {now} (first run)')
+
 
 # ── APScheduler jobs ──────────────────────────────────────────────────────────
 
@@ -347,11 +360,11 @@ if __name__ == '__main__':
     dhis2_base = os.environ.get('DHIS2_BASE_URL', 'http://localhost:8080/api')
     dhis2_url  = dhis2_base.replace('/api', '')
     print()
-    print('  ┌─────────────────────────────────────────────────────────┐')
-    print(f'  │  DHIS2 data entry   →  {dhis2_url}/dhis-web-dataentry/')
-    print(f'  │  Issue log          →  http://localhost:5001/issues')
-    print(f'  │  Health check       →  http://localhost:5001/api/health')
-    print('  └─────────────────────────────────────────────────────────┘')
+    print('  ┌──────────────────────────────────────────────────────────┐')
+    print(f'  │  DHIS2               →  {dhis2_url}')
+    print(f'  │  Issue log           →  http://localhost:5001/issues')
+    print(f'  │  Health check        →  http://localhost:5001/api/health')
+    print('  └──────────────────────────────────────────────────────────┘')
     print()
 
     try:
