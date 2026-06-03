@@ -343,6 +343,17 @@ if __name__ == '__main__':
     _startup()
     _sched  = _start_scheduler()
     _ngrok  = _start_ngrok()
+
+    dhis2_base = os.environ.get('DHIS2_BASE_URL', 'http://localhost:8080/api')
+    dhis2_url  = dhis2_base.replace('/api', '')
+    print()
+    print('  ┌─────────────────────────────────────────────────────────┐')
+    print(f'  │  DHIS2 data entry   →  {dhis2_url}/dhis-web-dataentry/')
+    print(f'  │  Issue log          →  http://localhost:5001/issues')
+    print(f'  │  Health check       →  http://localhost:5001/api/health')
+    print('  └─────────────────────────────────────────────────────────┘')
+    print()
+
     try:
         app.run(host='0.0.0.0', port=5001, debug=False, use_reloader=False)
     finally:
