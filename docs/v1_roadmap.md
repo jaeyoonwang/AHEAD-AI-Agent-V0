@@ -49,6 +49,8 @@ V0 is a working proof-of-concept, not a production system. It runs on a local DH
 
 | Gap | Description | Impact |
 |---|---|---|
+| **Outlier baseline contamination (masking)** | V0 computes Z-scores against the historical mean and SD. If previous errors were never corrected, they pull the mean toward them and inflate the SD — making new outliers harder to detect. Example: an uncorrected BCG=200 from 2025 shifts the baseline so BCG=190 in 2026 appears plausible. This is called *masking*. | Undetected historical errors silently reduce sensitivity over time. The more contamination in the history, the higher the bar a new outlier must clear. V0's leave-one-out only removes the *current* value from its own baseline — it does not clean other historical errors. |
+| **Robust statistics not implemented** | Median Absolute Deviation (method 3) uses the median instead of the mean, making it immune to historical contamination — the median cannot be shifted by extreme values. This is specifically why the AHEAD guide specifies it as one of five methods. | Without Median AD, the detection system is fragile against real-world DHIS2 data that likely contains pre-existing uncorrected errors. |
 | **SQLite database** | V0 uses SQLite (single-file, no concurrency). | Not suitable for multiple simultaneous connections in production. Migration to PostgreSQL is already planned (connection string change only). |
 | **Manual contact seeding** | Phone numbers are hardcoded in `agent/seed_contacts.py`. | Requires a developer to update and re-run the script every time a contact changes. Needs a UI or CSV import. |
 | **No contact registry integration with DHIS2** | George's team confirmed DHIS2 does not maintain phone numbers. The agent uses its own SQLite registry. | The two systems are permanently out of sync — any staff change requires a manual update to the contact table. |
@@ -133,4 +135,6 @@ These need answers before V1 can be designed with confidence.
 
 14. **Who owns and maintains the contact registry?** George confirmed DHIS2 doesn't maintain phone numbers. Is there an existing list maintained by the AHEAD team in Excel, or does it need to be built from scratch?
 
-15. **What is the data residency requirement?** Can the agent database (issue log, phone numbers, correction history) be hosted on AWS/Azure, or does it need to be on MoH infrastructure in Ethiopia?
+15. **How clean is the historical DHIS2 data in Ethiopia?** V0's outlier detection degrades silently if uncorrected errors already exist in the historical baseline — old errors pull the mean toward them, making new outliers harder to detect (the "masking" problem). Before deploying on a real country instance, a one-time historical audit is needed: either manually clean known errors, or confirm that the robust statistics in V1 (Median AD, method 3) are sufficient to handle the level of contamination.
+
+16. **What is the data residency requirement?** Can the agent database (issue log, phone numbers, correction history) be hosted on AWS/Azure, or does it need to be on MoH infrastructure in Ethiopia?
