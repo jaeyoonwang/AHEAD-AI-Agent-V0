@@ -93,18 +93,20 @@ Copy the ngrok URL → paste into Twilio WhatsApp sandbox as the webhook ("When 
 
 ### Before each demo: reset
 
+While the agent is running, call:
+
 ```bash
-# Ctrl+C to stop agent, then:
-python3 -c "
-import sys; sys.path.insert(0,'agent'); sys.path.insert(0,'.')
-from db import get_conn
-with get_conn() as conn:
-    conn.execute('DELETE FROM conversations')
-    conn.execute('DELETE FROM issues')
-    conn.execute('DELETE FROM poll_state')
-print('Reset complete')
-"
-python3 agent/app.py
+curl -s -X POST http://localhost:5001/api/reset-demo
+```
+
+This does three things atomically: deletes all June 2026 data values from DHIS2 for Addi Arekay HC, clears the agent DB (issues, conversations), and advances the poll cursor to now. **No agent restart needed.** Refresh `localhost:5001/issues` and it will be empty.
+
+> **Why DHIS2 data must be cleared:** DHIS2 does not update `lastUpdated` when you save the same value that's already stored. If BCG is already 970 and you type 970 again, DHIS2 silently skips the write — invisible to the poll. Clearing DHIS2 first ensures every demo entry is a genuine first write.
+
+If you need to restart the agent (port conflict):
+
+```bash
+pkill -f "agent/app.py"; sleep 1 && python3 agent/app.py
 ```
 
 ---
@@ -140,7 +142,7 @@ All checks run in `agent/dq_engine.py`. Thresholds are in `config.py` — no cod
 ```
 AHEAD DQ Alert [DQ-XXXX]
 Addi Arekay Health Center — Jun 2026
-BCG: 970 doses (expected 79–114)
+BCG (under 1 year): 970 doses (expected 79–114)
 
 Reply with option number:
 1. Replace with 6-month average
@@ -149,6 +151,16 @@ Reply with option number:
 4. Replace with specific value
 5. At health facility doses only
 6. Outreach doses only
+```
+
+**Example confirmation (option 4 — specific value):**
+
+```
+[DQ-XXXX] Confirm change:
+BCG (under 1 year) — Addi Arekay Health Center (Jun 2026)
+970 → 97
+
+Reply YES to update DHIS2 or NO to choose again.
 ```
 
 ---
@@ -181,7 +193,9 @@ Flag if: relative gap > 30%  OR  absolute gap > 100 doses
 ```
 AHEAD DQ Alert [DQ-YYYY]
 Addi Arekay Health Center — Jun 2026
-DTP1=60, DTP3=90 (DTP3 > DTP1, gap: 50%)
+DTP1 (under 1 year): 60 doses
+DTP3 (under 1 year): 90 doses
+(DTP3 > DTP1, gap: 50%)
 
 Reply with option number:
 1. Keep as-is (no action)
@@ -189,6 +203,16 @@ Reply with option number:
 3. Use DTP3 value for both
 4. Replace with specific value
 5. Other reason
+```
+
+**Example confirmation (option 2 — use DTP1 for both):**
+
+```
+[DQ-YYYY] Confirm change:
+DTP3 (under 1 year) — Addi Arekay Health Center (Jun 2026)
+90 → 60 (use DTP1 value for both)
+
+Reply YES to update DHIS2 or NO to choose again.
 ```
 
 ---
@@ -265,10 +289,14 @@ Each inbound reply moves the conversation through one of four states:
 
 **NO at confirmation** always re-sends the original options — the user can choose differently.
 
+**Resubmitting data supersedes any open issue.** If the worker re-enters a value in DHIS2 before responding to an alert, the old issue is automatically closed and a fresh one is created. This means the demo can be re-run simply by calling the reset endpoint and re-entering data — no manual DB cleanup needed.
+
+**Multiple issues from one submission are queued, not spammed.** If a single form submission triggers both an outlier and a DTP issue, only the first alert is sent immediately. The second stays as OPEN and is sent once the first conversation closes. This prevents overwhelming the worker and keeps one active conversation per contact at a time.
+
 **Issue log status mirrors conversation state:**
 `OPEN` → `NOTIFIED` → `IN PROGRESS` → `CONFIRMING` → `RESOLVED` / `CONFIRMED OK`
 
-Dashboard at `localhost:5001/issues` auto-refreshes every 10 seconds.
+Dashboard at `localhost:5001/issues` auto-refreshes every 10 seconds. Each status shows a timestamp in US Eastern time. Open issues have a ↺ Resend button to re-send the alert (useful when the WhatsApp sandbox session expires mid-conversation).
 
 ---
 
@@ -284,14 +312,14 @@ Dashboard at `localhost:5001/issues` auto-refreshes every 10 seconds.
 2. BCG row, `< 1 year` column → type **970** → Tab (field turns green)
 3. Watch issue log — within 30s: new row, status **NOTIFIED**
 4. WhatsApp alert arrives from Twilio sandbox number
-5. Reply **4** → status updates to **IN PROGRESS**; agent asks for correct value
-6. Reply **97** → status updates to **CONFIRMING**; agent shows: *"BCG <1yr 970 → 97. Reply YES or NO"*
-7. Reply **YES** → DHIS2 updated; status → **RESOLVED**
+5. Reply **4** → status → **IN PROGRESS**; agent: *"Please reply with the correct value (numbers only, e.g. 97)."*
+6. Reply **97** → status → **CONFIRMING**; agent: *"BCG (under 1 year) — Addi Arekay Health Center (Jun 2026) / 970 → 97 / Reply YES or NO"*
+7. Reply **YES** → DHIS2 updated; status → **RESOLVED**; agent: *"[DQ-XXXX] Noted. BCG (under 1 year) corrected to 97 in DHIS2. Thank you."*
 8. Refresh DHIS2 form — BCG now shows **97** (stored by `agent_service`)
 
-**Show the NO path:** At step 7, reply NO instead — options are re-sent, user can choose a different option.
+**Show the NO path:** At step 7, reply NO — original 6-option alert is re-sent; user can choose differently.
 
-**Show option 1 instead:** At step 5, reply 1 — agent auto-computes 6-month average (~97), sends confirmation showing the computed value. Reply YES to apply.
+**Show option 1 instead:** At step 5, reply **1** — agent auto-computes 6-month average (e.g. 99), sends *"970 → 99 (6-month average)"* confirmation. Reply YES to apply without typing a value.
 
 ---
 
@@ -300,9 +328,9 @@ Dashboard at `localhost:5001/issues` auto-refreshes every 10 seconds.
 1. Same June 2026 form
 2. **DPT-HepB-HIB 1** row, `< 1 year` → type **60** → Tab
 3. **DPT-HepB-HIB 3** row, `< 1 year` → type **90** → Tab
-4. Alert arrives within 30s: *"DTP1=60, DTP3=90 (DTP3 > DTP1, gap: 50%)"*
-5. Reply **2** → agent confirms: *"Set DTP3 to match DTP1 (60)"*
-6. Reply **YES** → DTP3 corrected to 60 in DHIS2
+4. Alert arrives within 30s showing both fields with full names and the gap percentage
+5. Reply **2** → status → **CONFIRMING**; agent: *"DTP3 (under 1 year) — Addi Arekay HC (Jun 2026) / 90 → 60 (use DTP1 value for both)"*
+6. Reply **YES** → DTP3 corrected to 60 in DHIS2; status → **RESOLVED**
 
 > DTP3 can never exceed DTP1 — more children cannot complete the series than started it. Flagged because |(90−60)/60| = 50% > 30% threshold.
 

@@ -863,7 +863,9 @@ body('All demos use a single login: eth_facility_01 / [DHIS2_USER_PASSWORD from 
 sp()
 body('Demos A and B use June 2026 (202606) — a period with no data yet. Demo C uses May 2026 (202605) to show the missing report scenario for a prior month that was never formally completed.')
 sp()
-body('Addi Arekay Health Center is a Health Center (tier 2). BCG under-1 baseline: ~97/month (range 80–115 across 22 months). Penta1 under-1: ~87. Penta3 under-1: ~71. Outlier detection threshold: Z-score > 2.0 SD OR absolute diff > 100 doses. Detection is within ~30 seconds via lastUpdated polling, or trigger instantly with: POST http://localhost:5001/api/scan')
+body('Addi Arekay Health Center is a Health Center (tier 2). BCG under-1 baseline: ~97/month (range 80–115 across 22 months). Penta1 under-1: ~87. Penta3 under-1: ~71. Outlier detection threshold: Z-score > 2.0 SD AND absolute diff > 100 doses. Detection is within ~30 seconds via lastUpdated polling.')
+sp()
+body('Between demo runs, reset with: curl -s -X POST http://localhost:5001/api/reset-demo — this clears both the agent DB and the June 2026 DHIS2 data so each run starts from a blank form. No agent restart needed.')
 sp()
 
 h2('Demo A — Statistical Outlier: Addi Arekay Health Center, Jun 2026 (~6 min)')
@@ -899,7 +901,8 @@ body('Step 4 — SMS arrives on presenter\'s phone')
 mono(
     'AHEAD DQ Alert [DQ-XXXX]\n'
     'Addi Arekay Health Center — Jun 2026\n'
-    'BCG: 970 doses (expected 79–114)\n'
+    'BCG (under 1 year): 970 doses (expected 79–114)\n'
+    '\n'
     'Reply with option number:\n'
     '1. Replace with 6-month average\n'
     '2. Keep as-is (no action)\n'
@@ -923,14 +926,15 @@ bullet('Reply: 97')
 bullet('Agent sends the YES/NO confirmation (issue log status: CONFIRMING):')
 mono(
     '[DQ-XXXX] Confirm change:\n'
-    'BCG <1yr — Addi Arekay Health Center (Jun 2026)\n'
-    '970 -> 97\n'
-    'Reply YES to update DHIS2 or NO to re-enter.'
+    'BCG (under 1 year) — Addi Arekay Health Center (Jun 2026)\n'
+    '970 → 97\n'
+    '\n'
+    'Reply YES to update DHIS2 or NO to choose again.'
 )
 bullet('Reply: YES')
 bullet('Agent applies the correction and sends:')
 mono(
-    '[DQ-XXXX] Noted. Value corrected to 97 in DHIS2. Thank you.'
+    '[DQ-XXXX] Noted. BCG (under 1 year) corrected to 97 in DHIS2. Thank you.'
 )
 bullet('Issue log status changes to RESOLVED')
 sp()
@@ -973,7 +977,9 @@ body('Step 4 — WhatsApp alert arrives')
 mono(
     'AHEAD DQ Alert [DQ-YYYY]\n'
     'Addi Arekay Health Center — Jun 2026\n'
-    'DTP1=60, DTP3=90 (DTP3 > DTP1, gap: 50%)\n'
+    'DTP1 (under 1 year): 60 doses\n'
+    'DTP3 (under 1 year): 90 doses\n'
+    '(DTP3 > DTP1, gap: 50%)\n'
     '\n'
     'Reply with option number:\n'
     '1. Keep as-is (no action)\n'
@@ -990,8 +996,11 @@ bullet('Narrate: "Almaz knows Penta1 = 60 is correct. She selects option 2 — a
 bullet('Reply: 2')
 bullet('Issue log updates to CONFIRMING. Agent sends:')
 mono(
-    '[DQ-YYYY] Confirm: Set DTP3 to match DTP1 (60)\n'
-    'Addi Arekay Health Center (Jun 2026)\n'
+    '[DQ-YYYY] Confirm change:\n'
+    'DTP3 (under 1 year) — Addi Arekay Health Center (Jun 2026)\n'
+    '90 → 60 (use DTP1 value for both)\n'
+    '\n'
+    'Reply YES to update DHIS2 or NO to choose again.\n'
     '\n'
     'Reply YES to update DHIS2 or NO to choose again.'
 )
