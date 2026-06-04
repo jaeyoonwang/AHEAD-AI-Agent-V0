@@ -198,6 +198,8 @@ Open the issue log at [http://localhost:5001/issues](http://localhost:5001/issue
 
 ### Before the demo
 
+**Warm up the WhatsApp sandbox** — open WhatsApp on your phone and send any message (e.g. "hi") to **+1 415 523 8886**. The sandbox session expires after 24 hours of inactivity; sending a message right before the demo resets the clock and ensures all 4 turns of the conversation are delivered reliably.
+
 Reset the agent database so the issue log starts empty:
 
 ```bash
