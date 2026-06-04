@@ -200,15 +200,20 @@ Open the issue log at [http://localhost:5001/issues](http://localhost:5001/issue
 
 **Warm up the WhatsApp sandbox** — open WhatsApp on your phone and send any message (e.g. "hi") to **+1 415 523 8886**. The sandbox session expires after 24 hours of inactivity; sending a message right before the demo resets the clock and ensures all 4 turns of the conversation are delivered reliably.
 
-**Reset everything** — agent DB and DHIS2 June 2026 data — with one API call:
+**Reset between demo runs** — while the agent is still running, call:
 
 ```bash
-curl -s -X POST http://localhost:5001/api/reset-demo | python3 -m json.tool
+curl -s -X POST http://localhost:5001/api/reset-demo
 ```
 
-This clears both the agent database (issues, conversations, poll state) AND deletes the June 2026 data values from DHIS2 for Addi Arekay HC. DHIS2 does not update `lastUpdated` when you save the same value, so the poll cannot detect a resubmission of an identical number. Resetting DHIS2 ensures entering BCG=970 is always a genuine first write that the poll can detect.
+This does three things atomically:
+1. Deletes all June 2026 data values from DHIS2 for Addi Arekay HC
+2. Clears the agent DB (issues, conversations)
+3. Advances the poll cursor to now
 
-> The old manual python3 reset script only cleared the agent DB — it left DHIS2 data intact, which caused the poll to miss resubmissions of the same value.
+No agent restart needed. After the call, the issue log is empty and the DHIS2 form is blank — entering BCG=970 will always be a genuine first write that the poll detects.
+
+> **Why this matters:** DHIS2 does not update `lastUpdated` when you save the same value that's already stored. If BCG is already 970 and you type 970 again, DHIS2 silently skips the write and `lastUpdated` stays in the past — invisible to the poll. Clearing DHIS2 first solves this entirely.
 
 ---
 

@@ -210,13 +210,18 @@ def api_reset_demo():
             except Exception as e:
                 errors.append(str(e))
 
-    # 2. Reset agent DB
+    # 2. Reset agent DB and advance poll cursor to now
+    #    (clearing poll_state would cause the next poll to default to 2024-01-01
+    #    and flood with historical data — set to now instead)
+    now = dc.now_iso()
     with get_conn() as conn:
         conn.execute('DELETE FROM conversations')
         conn.execute('DELETE FROM issues')
-        conn.execute('DELETE FROM poll_state')
+        conn.execute(
+            "INSERT OR REPLACE INTO poll_state (key, value) VALUES ('last_checked', ?)", (now,)
+        )
 
-    print('[APP] demo reset complete — DHIS2 Jun 2026 cleared, agent DB reset')
+    print(f'[APP] demo reset — DHIS2 Jun 2026 cleared, DB reset, poll cursor → {now}')
     return jsonify({'ok': True, 'dhis2_errors': errors})
 
 
