@@ -100,6 +100,16 @@ This is the AHEAD guide's method 5 ("absolute difference from mean > 100 doses")
 | `expected_high` | `loo_mean + 2.0 × loo_std` | 114 |
 | `data_element` | Antigen name | BCG |
 
+### Write-back: values are always rounded to integers
+
+DHIS2 rejects decimal values for dose data elements (returns HTTP 409). All write-back paths round to the nearest integer before posting:
+
+- **Option 1 (6-month average):** `compute_surrounding_average()` returns `int(round(mean))` — e.g. an average of 99.5 is written to DHIS2 as 100.
+- **Option 4 (user-provided):** the user types a number like "97" — cast to int before writing.
+- **Option 3 (set to zero):** writes 0.
+
+This rounding is applied in `_execute_write_back()` in `agent/state_machine.py`.
+
 ### What the SMS shows
 
 ```

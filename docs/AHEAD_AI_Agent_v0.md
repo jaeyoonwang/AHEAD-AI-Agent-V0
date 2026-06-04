@@ -255,6 +255,8 @@ Options match the AHEAD Excel dropdown schema (reference guide sections 2.2–2.
 
 **All options that modify DHIS2 data require a YES/NO confirmation before being applied.** On NO, the original options are re-sent.
 
+**All written values are rounded to the nearest integer.** DHIS2 rejects decimal values for dose data elements. This applies to every write-back path — user-provided values (e.g. "97"), computed values (e.g. a 6-month average of 99.5 → written as 100), and DTP set-both corrections. The rounding happens in `_execute_write_back()` in `agent/state_machine.py` before the DHIS2 API call.
+
 | Check | # | Option | What happens |
 |---|---|---|---|
 | Outlier | 1 | Replace with 6-month average | Agent computes avg of 3 periods before + 3 after; shows value in confirmation; writes on YES |
