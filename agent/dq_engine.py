@@ -25,13 +25,51 @@ from db import get_conn, gen_ref_id
 _DE_NAME = {v: k for k, v in cfg.DATA_ELEMENTS.items()}
 
 
-def _open_issue_exists(conn, facility_uid, period, data_element, issue_type):
-    return conn.execute(
-        "SELECT 1 FROM issues "
+def _skip_or_supersede(conn, facility_uid, period, data_element, issue_type):
+    """
+    Check for an existing open issue for the same (facility, period, element, type).
+
+    Returns True  → skip: user is already mid-conversation (awaiting_followup or
+                    awaiting_confirmation), so don't disrupt an active exchange.
+    Returns False → proceed: either no existing issue, or the existing issue has
+                    received no reply yet (awaiting_option) and is superseded —
+                    the old issue is closed and a fresh one will be created.
+
+    Superseding on resubmission means that re-entering data in DHIS2 always
+    re-triggers the full alert flow, which is the expected demo behaviour.
+    """
+    existing = conn.execute(
+        "SELECT ref_id FROM issues "
         "WHERE facility_uid=? AND period=? AND data_element IS ? AND issue_type=? "
-        "AND status NOT IN ('resolved', 'ignored')",
+        "AND status NOT IN ('resolved', 'ignored') LIMIT 1",
         (facility_uid, period, data_element, issue_type)
-    ).fetchone() is not None
+    ).fetchone()
+
+    if not existing:
+        return False  # no existing issue — proceed normally
+
+    ref = existing['ref_id']
+    conv = conn.execute(
+        "SELECT state FROM conversations WHERE issue_ref_id=? AND state != 'closed' "
+        "ORDER BY updated_at DESC LIMIT 1",
+        (ref,)
+    ).fetchone()
+
+    if conv and conv['state'] in ('awaiting_followup', 'awaiting_confirmation'):
+        return True  # user is mid-conversation — leave it alone
+
+    # No response yet (awaiting_option) or no conversation — supersede
+    conn.execute(
+        "UPDATE issues SET status='resolved', "
+        "resolution_notes='Superseded: new data submitted before response' "
+        "WHERE ref_id=?", (ref,)
+    )
+    conn.execute(
+        "UPDATE conversations SET state='closed', updated_at=CURRENT_TIMESTAMP "
+        "WHERE issue_ref_id=? AND state != 'closed'", (ref,)
+    )
+    print(f'[DQ] superseded stale issue {ref} — new submission detected')
+    return False  # proceed: create a fresh issue
 
 
 def _create_issue(conn, issue_type, facility_uid, facility_name, period,
@@ -107,7 +145,7 @@ def check_outliers(changed_pairs=None):
                 if abs(value - mean) < cfg.OUTLIER_ABS_THRESHOLD:
                     continue
 
-            if _open_issue_exists(conn, ou_uid, period, de_name, 'outlier'):
+            if _skip_or_supersede(conn, ou_uid, period, de_name, 'outlier'):
                 continue
 
             # Look up facility name from cached hierarchy (raw API doesn't return ouName)
@@ -179,7 +217,7 @@ def check_dtp(changed_pairs=None):
             ).fetchone()
             fac_name = row['facility_name'] if row else ou_uid
 
-            if _open_issue_exists(conn, ou_uid, period, 'DTP', 'dtp'):
+            if _skip_or_supersede(conn, ou_uid, period, 'DTP', 'dtp'):
                 continue
 
             ref = _create_issue(
@@ -218,7 +256,7 @@ def check_missing_reports(period):
         for fac in facilities:
             if fac['uid'] in submitted:
                 continue
-            if _open_issue_exists(conn, fac['uid'], period, None, 'missing'):
+            if _skip_or_supersede(conn, fac['uid'], period, None, 'missing'):
                 continue
 
             ref = _create_issue(
