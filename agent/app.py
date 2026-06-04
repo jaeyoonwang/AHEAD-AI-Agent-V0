@@ -173,7 +173,8 @@ def webhook_sms():
     reply = sm.handle_inbound(from_phone, body)
 
     if reply:
-        twiml = f'<?xml version="1.0"?><Response><Message>{reply}</Message></Response>'
+        import html as _html
+        twiml = f'<?xml version="1.0"?><Response><Message>{_html.escape(reply)}</Message></Response>'
     else:
         twiml = '<?xml version="1.0"?><Response></Response>'
 

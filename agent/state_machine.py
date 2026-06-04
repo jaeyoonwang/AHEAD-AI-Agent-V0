@@ -204,7 +204,7 @@ def _build_auto_confirmation_prompt(issue, option, value, description):
     if t == 'outlier' and option == 3:
         old = int(issue['flagged_value']) if issue['flagged_value'] else '?'
         return (
-            f'[{ref}] Confirm: set {issue["data_element"]} <1yr to 0\n'
+            f'[{ref}] Confirm: set {issue["data_element"]} under 1yr to 0\n'
             f'{fac} ({per}) — current value: {old}\n\n'
             f'Reply YES to update DHIS2 or NO to choose again.'
         )
@@ -320,7 +320,7 @@ def _build_confirmation_prompt(issue, value, selected_option):
         old = int(issue['flagged_value']) if issue['flagged_value'] else '?'
         return (
             f'[{ref}] Confirm change:\n'
-            f'{issue["data_element"]} <1yr — {fac} ({per})\n'
+            f'{issue["data_element"]} under 1yr — {fac} ({per})\n'
             f'{old} → {value}\n\n'
             f'Reply YES to update DHIS2 or NO to re-enter.'
         )
