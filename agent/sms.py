@@ -66,6 +66,21 @@ def send_sms(to_phone, body):
 
 _MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
+# Full descriptive labels matching the DHIS2 form field names exactly.
+# Used in every outbound message so the worker never needs to go back to DHIS2
+# to figure out which field is being discussed.
+_ANTIGEN_LABELS = {
+    'BCG':    'BCG (under 1 year)',
+    'Penta1': 'DTP-HepB-HIB 1 (under 1 year)',
+    'Penta3': 'DTP-HepB-HIB 3 (under 1 year)',
+    'MR1':    'MR 1 (under 1 year)',
+}
+
+
+def antigen_label(de_name):
+    """Return the full DHIS2 field label for a data element short name."""
+    return _ANTIGEN_LABELS.get(de_name, de_name)
+
 
 def period_label(period_str):
     """'202606' → 'Jun 2026'"""
@@ -98,7 +113,7 @@ def build_outlier_message(ref_id, facility_name, period, antigen,
     return (
         f'AHEAD DQ Alert [{ref_id}]\n'
         f'{facility_name} — {period_label(period)}\n'
-        f'{antigen}: {int(value)} doses (expected {exp})\n'
+        f'{antigen_label(antigen)}: {int(value)} doses (expected {exp})\n'
         f'\n'
         f'Reply with option number:\n'
         f'1. Replace with 6-month average\n'
@@ -123,10 +138,14 @@ def build_dtp_message(ref_id, facility_name, period, penta1, penta3):
     """
     diff_pct = round(abs((penta3 - penta1) / penta1) * 100) if penta1 else 0
     direction = 'DTP3 > DTP1' if penta3 > penta1 else 'DTP1 > DTP3'
+    p1_label  = antigen_label('Penta1')
+    p3_label  = antigen_label('Penta3')
     return (
         f'AHEAD DQ Alert [{ref_id}]\n'
         f'{facility_name} — {period_label(period)}\n'
-        f'DTP1={int(penta1)}, DTP3={int(penta3)} ({direction}, gap: {diff_pct}%)\n'
+        f'{p1_label}: {int(penta1)} doses\n'
+        f'{p3_label}: {int(penta3)} doses\n'
+        f'({direction}, gap: {diff_pct}%)\n'
         f'\n'
         f'Reply with option number:\n'
         f'1. Keep as-is (no action)\n'

@@ -18,7 +18,8 @@ import dhis2_client as dc
 from db import get_conn, get_active_conversation, get_contact_for_escalation
 from sms import (send_sms, build_outlier_message, build_dtp_message,
                  build_missing_message, build_followup_prompt,
-                 build_confirmation, build_escalation_notice, period_label)
+                 build_confirmation, build_escalation_notice,
+                 period_label, antigen_label)
 
 _ai = None
 
@@ -231,7 +232,7 @@ def _build_confirmation_prompt(issue, value, selected_option):
         )
 
     if t == 'outlier':
-        el  = f'{issue["data_element"]} under 1yr'
+        el  = antigen_label(issue['data_element'])
         old = issue['flagged_value']
         if selected_option == 1:
             return _change(el, old, value, '6-month average')
@@ -241,14 +242,16 @@ def _build_confirmation_prompt(issue, value, selected_option):
             return _change(el, old, value)
 
     if t == 'dtp':
+        p1_label = antigen_label('Penta1')
+        p3_label = antigen_label('Penta3')
         if selected_option == 2:
-            return _change('DTP3 under 1yr', issue['flagged_value'], value,
-                           f'use DTP1 value for both')
+            return _change(p3_label, issue['flagged_value'], value,
+                           'use DTP1 value for both')
         if selected_option == 3:
-            return _change('DTP1 under 1yr', issue['expected_low'], value,
-                           f'use DTP3 value for both')
+            return _change(p1_label, issue['expected_low'], value,
+                           'use DTP3 value for both')
         if selected_option == 4:
-            return _change('DTP3 under 1yr', issue['flagged_value'], value)
+            return _change(p3_label, issue['flagged_value'], value)
 
     if t == 'missing':
         if selected_option == 1:
@@ -294,24 +297,27 @@ def _execute_write_back(issue, selected_option, value):
 
     if t == 'outlier':
         de_uid = de_map.get(issue['data_element'])
+        el     = antigen_label(issue['data_element'])
         if not de_uid:
             return f'Configuration error: unknown element {issue["data_element"]}.'
         if selected_option == 1:
-            return _write(de_uid, value, f'Replaced with 6-month average ({value}) in DHIS2.')
+            return _write(de_uid, value, f'{el} replaced with 6-month average ({value}) in DHIS2.')
         if selected_option == 3:
-            return _write(de_uid, '0', 'Set to zero in DHIS2.')
+            return _write(de_uid, '0', f'{el} set to zero in DHIS2.')
         if selected_option == 4:
-            return _write(de_uid, value, f'Value corrected to {value} in DHIS2.')
+            return _write(de_uid, value, f'{el} corrected to {value} in DHIS2.')
 
     if t == 'dtp':
-        p1_uid = de_map.get('Penta1')
-        p3_uid = de_map.get('Penta3')
+        p1_uid   = de_map.get('Penta1')
+        p3_uid   = de_map.get('Penta3')
+        p1_label = antigen_label('Penta1')
+        p3_label = antigen_label('Penta3')
         if selected_option == 2:
-            return _write(p3_uid, value, f'DTP3 set to match DTP1 ({value}) in DHIS2.')
+            return _write(p3_uid, value, f'{p3_label} set to match {p1_label} ({value}) in DHIS2.')
         if selected_option == 3:
-            return _write(p1_uid, value, f'DTP1 set to match DTP3 ({value}) in DHIS2.')
+            return _write(p1_uid, value, f'{p1_label} set to match {p3_label} ({value}) in DHIS2.')
         if selected_option == 4:
-            return _write(p3_uid, value, f'DTP3 corrected to {value} in DHIS2.')
+            return _write(p3_uid, value, f'{p3_label} corrected to {value} in DHIS2.')
 
     if t == 'missing':
         if selected_option == 1:
