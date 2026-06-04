@@ -369,13 +369,33 @@ def issue_log():
         ts            = status_ts(i)
         is_open       = i['status'] not in ('resolved', 'ignored', 'escalated')
 
-        element  = i['data_element'] or '—'
-        value    = f'{int(i["flagged_value"])}' if i['flagged_value'] else '—'
-        expected = ''
-        if i['expected_low'] is not None and i['expected_high'] is not None:
-            if i['issue_type'] == 'dtp':
-                expected = f'Penta1={int(i["expected_low"])}'
-            else:
+        # ── Element label (full DHIS2 field name + age band) ─────────────────
+        _labels = {
+            'BCG':    'BCG (under 1 year)',
+            'Penta1': 'DTP1 (under 1 year)',
+            'Penta3': 'DTP3 (under 1 year)',
+            'MR1':    'MR1 (under 1 year)',
+            'DTP':    'DTP1 / DTP3 (under 1 year)',
+        }
+        de = i['data_element'] or ''
+        element = _labels.get(de, de or '—')
+
+        # ── Value and expected range — format differs by issue type ───────────
+        if i['issue_type'] == 'dtp':
+            # Show both values and the gap so the problem is obvious at a glance
+            p3 = int(i['flagged_value']) if i['flagged_value'] is not None else '?'
+            p1 = int(i['expected_low'])  if i['expected_low']  is not None else '?'
+            value = f'DTP3={p3} &gt; DTP1={p1}'
+            try:
+                gap = round(abs((float(i['flagged_value']) - float(i['expected_low']))
+                                / float(i['expected_low'])) * 100)
+                expected = f'{gap}% gap (max 30%)'
+            except Exception:
+                expected = '—'
+        else:
+            value    = f'{int(i["flagged_value"])}' if i['flagged_value'] is not None else '—'
+            expected = ''
+            if i['expected_low'] is not None and i['expected_high'] is not None:
                 lo = max(0, int(i['expected_low']))
                 expected = f'{lo}–{int(i["expected_high"])}'
 
