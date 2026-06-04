@@ -29,14 +29,12 @@ def _skip_or_supersede(conn, facility_uid, period, data_element, issue_type):
     """
     Check for an existing open issue for the same (facility, period, element, type).
 
-    Returns True  → skip: user is already mid-conversation (awaiting_followup or
-                    awaiting_confirmation), so don't disrupt an active exchange.
-    Returns False → proceed: either no existing issue, or the existing issue has
-                    received no reply yet (awaiting_option) and is superseded —
-                    the old issue is closed and a fresh one will be created.
+    Always supersedes any open issue when new data is submitted — regardless of
+    conversation state. Submitting data in DHIS2 is an explicit intent to change
+    the value, so any pending conversation is stale by definition.
 
-    Superseding on resubmission means that re-entering data in DHIS2 always
-    re-triggers the full alert flow, which is the expected demo behaviour.
+    Returns False → proceed (no existing issue, or existing was superseded).
+    Never returns True — resubmission always restarts the full alert flow.
     """
     existing = conn.execute(
         "SELECT ref_id FROM issues "
@@ -46,30 +44,20 @@ def _skip_or_supersede(conn, facility_uid, period, data_element, issue_type):
     ).fetchone()
 
     if not existing:
-        return False  # no existing issue — proceed normally
+        return False
 
     ref = existing['ref_id']
-    conv = conn.execute(
-        "SELECT state FROM conversations WHERE issue_ref_id=? AND state != 'closed' "
-        "ORDER BY updated_at DESC LIMIT 1",
-        (ref,)
-    ).fetchone()
-
-    if conv and conv['state'] in ('awaiting_followup', 'awaiting_confirmation'):
-        return True  # user is mid-conversation — leave it alone
-
-    # No response yet (awaiting_option) or no conversation — supersede
     conn.execute(
         "UPDATE issues SET status='resolved', "
-        "resolution_notes='Superseded: new data submitted before response' "
+        "resolution_notes='Superseded: new data submitted' "
         "WHERE ref_id=?", (ref,)
     )
     conn.execute(
         "UPDATE conversations SET state='closed', updated_at=CURRENT_TIMESTAMP "
         "WHERE issue_ref_id=? AND state != 'closed'", (ref,)
     )
-    print(f'[DQ] superseded stale issue {ref} — new submission detected')
-    return False  # proceed: create a fresh issue
+    print(f'[DQ] superseded {ref} — new submission detected')
+    return False
 
 
 def _create_issue(conn, issue_type, facility_uid, facility_name, period,
