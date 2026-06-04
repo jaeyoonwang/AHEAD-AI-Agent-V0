@@ -90,6 +90,40 @@ def _startup():
 
 # ── APScheduler jobs ──────────────────────────────────────────────────────────
 
+def _notify_queued(ref_ids):
+    """
+    Send notifications for a list of new issues one at a time.
+
+    When multiple issues are detected from the same data submission (e.g. both
+    an outlier and a DTP inconsistency), sending all alerts simultaneously
+    would overwhelm the worker and break the state machine (only one active
+    conversation per phone). Instead, notify only if the contact has no open
+    conversation already. Remaining issues stay as OPEN — the 30-min timer job
+    picks them up once the current conversation closes.
+    """
+    for ref_id in ref_ids:
+        with get_conn() as conn:
+            issue = conn.execute('SELECT * FROM issues WHERE ref_id=?', (ref_id,)).fetchone()
+            if not issue:
+                continue
+            contact = sm._get_contact_for_issue(conn, issue)
+            if not contact:
+                sm.notify_issue(ref_id)
+                continue
+            # Check if this contact already has an open conversation
+            active = conn.execute(
+                "SELECT 1 FROM conversations c "
+                "JOIN issues i ON i.ref_id = c.issue_ref_id "
+                "WHERE c.phone=? AND c.state != 'closed' "
+                "AND i.ref_id != ?",
+                (contact['phone'], ref_id)
+            ).fetchone()
+            if active:
+                print(f'[APP] queued {ref_id} — contact already in active conversation')
+            else:
+                sm.notify_issue(ref_id)
+
+
 def _job_poll_changes():
     """Every 30 seconds: check for new data values; trigger DQ if changed."""
     with get_conn() as conn:
@@ -115,8 +149,7 @@ def _job_poll_changes():
 
     print(f'[POLL] {len(changes)} change(s) detected — running DQ scan')
     new_refs = dq_engine.run_triggered_scan(changes)
-    for ref_id in new_refs:
-        sm.notify_issue(ref_id)
+    _notify_queued(new_refs)
 
 
 def _job_check_missing():
@@ -129,8 +162,7 @@ def _job_check_missing():
     period = prev_month.strftime('%Y%m')
     print(f'[MISSING] running check for period {period}')
     new_refs = dq_engine.check_missing_reports(period)
-    for ref_id in new_refs:
-        sm.notify_issue(ref_id)
+    _notify_queued(new_refs)
 
 
 def _job_process_timers():
@@ -259,8 +291,7 @@ def api_scan():
     period = data.get('period')
 
     new_refs = dq_engine.run_full_scan(period)
-    for ref_id in new_refs:
-        sm.notify_issue(ref_id)
+    _notify_queued(new_refs)
 
     return jsonify({'new_issues': new_refs, 'count': len(new_refs)})
 
@@ -303,15 +334,21 @@ def issue_log():
         return 'OPEN', '#e67e22'
 
     def fmt_ts(ts):
-        """Format a SQLite timestamp string to 'Jun 4, 17:35'."""
+        """Format a UTC timestamp string as EST/EDT local time ('Jun 4, 1:35 PM')."""
         if not ts:
             return ''
         try:
-            from datetime import datetime
-            dt = datetime.fromisoformat(ts.replace('T', ' ').split('.')[0])
+            from datetime import datetime, timezone
+            from zoneinfo import ZoneInfo
+            raw = ts.replace('T', ' ').split('.')[0]
+            # SQLite stores timestamps without timezone — treat as UTC
+            dt_utc = datetime.fromisoformat(raw).replace(tzinfo=timezone.utc)
+            dt_est = dt_utc.astimezone(ZoneInfo('America/New_York'))
             months = ['Jan','Feb','Mar','Apr','May','Jun',
                       'Jul','Aug','Sep','Oct','Nov','Dec']
-            return f'{months[dt.month-1]} {dt.day}, {dt.strftime("%H:%M")}'
+            hour = dt_est.hour % 12 or 12
+            ampm = 'AM' if dt_est.hour < 12 else 'PM'
+            return f'{months[dt_est.month-1]} {dt_est.day}, {hour}:{dt_est.strftime("%M")} {ampm}'
         except Exception:
             return ts[:16]
 

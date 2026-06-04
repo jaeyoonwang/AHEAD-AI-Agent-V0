@@ -362,6 +362,13 @@ def _resolve(conn, conv_id, ref_id, status, action_note):
     )
 
 
+# ── Public helpers ───────────────────────────────────────────────────────────
+
+def _get_contact_for_issue(conn, issue):
+    """Return the contact for an issue's current cascade level (or None)."""
+    return get_contact_for_escalation(conn, issue['facility_uid'], issue['cascade_level'])
+
+
 # ── Public: notify a new issue ────────────────────────────────────────────────
 
 def notify_issue(ref_id):
