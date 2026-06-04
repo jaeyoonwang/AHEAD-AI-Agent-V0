@@ -181,6 +181,45 @@ def webhook_sms():
     return Response(twiml, mimetype='text/xml')
 
 
+@app.route('/api/reset-demo', methods=['POST'])
+def api_reset_demo():
+    """
+    Full demo reset: clears agent DB state AND deletes June 2026 data values
+    from DHIS2 for the demo facility (Addi Arekay HC).
+
+    DHIS2 does not update lastUpdated when you save an identical value, so the
+    poll cannot detect a 'resubmission' of the same number. Clearing the DHIS2
+    values first ensures every demo run starts from an empty form — entering
+    BCG=970 is always a genuine first write with a fresh lastUpdated.
+
+    Call this instead of the manual python3 reset script between demo runs.
+    """
+    demo_facility = 'aV3ume00zx5'   # Addi Arekay Health Center
+    demo_period   = '202606'         # June 2026
+
+    errors = []
+
+    # 1. Delete all data values for the demo facility/period from DHIS2
+    for de_uid in cfg.DATA_ELEMENTS.values():
+        for coc_uid in cfg.CATEGORY_OPTION_COMBOS.values():
+            try:
+                dc._sess.delete(f'{dc.BASE}/dataValues', params={
+                    'de': de_uid, 'ou': demo_facility,
+                    'pe': demo_period, 'co': coc_uid,
+                }, timeout=10)
+            except Exception as e:
+                errors.append(str(e))
+
+    # 2. Reset agent DB
+    with get_conn() as conn:
+        conn.execute('DELETE FROM conversations')
+        conn.execute('DELETE FROM issues')
+        conn.execute('DELETE FROM poll_state')
+
+    print('[APP] demo reset complete — DHIS2 Jun 2026 cleared, agent DB reset')
+    return jsonify({'ok': True, 'dhis2_errors': errors})
+
+
 @app.route('/api/resend/<ref_id>', methods=['POST'])
 def api_resend(ref_id):
     """

@@ -200,22 +200,15 @@ Open the issue log at [http://localhost:5001/issues](http://localhost:5001/issue
 
 **Warm up the WhatsApp sandbox** — open WhatsApp on your phone and send any message (e.g. "hi") to **+1 415 523 8886**. The sandbox session expires after 24 hours of inactivity; sending a message right before the demo resets the clock and ensures all 4 turns of the conversation are delivered reliably.
 
-Reset the agent database so the issue log starts empty:
+**Reset everything** — agent DB and DHIS2 June 2026 data — with one API call:
 
 ```bash
-# Stop the agent first (Ctrl+C), then:
-python3 -c "
-import sys; sys.path.insert(0,'agent'); sys.path.insert(0,'.')
-from db import get_conn
-with get_conn() as conn:
-    conn.execute('DELETE FROM conversations')
-    conn.execute('DELETE FROM issues')
-    conn.execute('DELETE FROM poll_state')
-print('Reset complete')
-"
-# Restart the agent
-python3 agent/app.py
+curl -s -X POST http://localhost:5001/api/reset-demo | python3 -m json.tool
 ```
+
+This clears both the agent database (issues, conversations, poll state) AND deletes the June 2026 data values from DHIS2 for Addi Arekay HC. DHIS2 does not update `lastUpdated` when you save the same value, so the poll cannot detect a resubmission of an identical number. Resetting DHIS2 ensures entering BCG=970 is always a genuine first write that the poll can detect.
+
+> The old manual python3 reset script only cleared the agent DB — it left DHIS2 data intact, which caused the poll to miss resubmissions of the same value.
 
 ---
 
