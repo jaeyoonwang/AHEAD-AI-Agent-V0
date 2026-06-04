@@ -194,32 +194,78 @@ def _compute_auto_action(issue, option):
     return None
 
 
-def _build_auto_confirmation_prompt(issue, option, value, description):
-    """Confirmation message for auto-computed corrections (no user input needed)."""
+def _build_confirmation_prompt(issue, value, selected_option):
+    """
+    Unified YES/NO confirmation prompt for every write-back option.
+
+    All data corrections use the same format:
+      [REF] Confirm change:
+      {element} — {facility} ({period})
+      {old} → {new}  [optional: (reason)]
+
+      Reply YES to update DHIS2 or NO to choose again.
+
+    Non-data confirmations (missing date/closure) use a shorter variant.
+    """
     ref = issue['ref_id']
     fac = issue['facility_name']
     per = period_label(issue['period'])
     t   = issue['issue_type']
 
-    if t == 'outlier' and option == 3:
-        old = int(issue['flagged_value']) if issue['flagged_value'] else '?'
+    def _i(v):
+        """Format any value as a rounded integer string for display."""
+        try:
+            return str(int(round(float(v))))
+        except (TypeError, ValueError):
+            return str(v)
+
+    def _change(element_label, old_val, new_val, note=None):
+        line = f'{_i(old_val)} → {_i(new_val)}'
+        if note:
+            line += f' ({note})'
         return (
-            f'[{ref}] Confirm: set {issue["data_element"]} under 1yr to 0\n'
-            f'{fac} ({per}) — current value: {old}\n\n'
+            f'[{ref}] Confirm change:\n'
+            f'{element_label} — {fac} ({per})\n'
+            f'{line}\n\n'
             f'Reply YES to update DHIS2 or NO to choose again.'
         )
-    if t == 'missing' and option == 3:
-        return (
-            f'[{ref}] Confirm: record facility closure for {fac} ({per}).\n'
-            f'This will be flagged for HQ to apply zero imputation.\n\n'
-            f'Reply YES to confirm or NO to choose again.'
-        )
-    # Generic format for average, DTP set-both
-    return (
-        f'[{ref}] Confirm: {description}\n'
-        f'{fac} ({per})\n\n'
-        f'Reply YES to update DHIS2 or NO to choose again.'
-    )
+
+    if t == 'outlier':
+        el  = f'{issue["data_element"]} under 1yr'
+        old = issue['flagged_value']
+        if selected_option == 1:
+            return _change(el, old, value, '6-month average')
+        if selected_option == 3:
+            return _change(el, old, 0, 'set to zero')
+        if selected_option == 4:
+            return _change(el, old, value)
+
+    if t == 'dtp':
+        if selected_option == 2:
+            return _change('DTP3 under 1yr', issue['flagged_value'], value,
+                           f'use DTP1 value for both')
+        if selected_option == 3:
+            return _change('DTP1 under 1yr', issue['expected_low'], value,
+                           f'use DTP3 value for both')
+        if selected_option == 4:
+            return _change('DTP3 under 1yr', issue['flagged_value'], value)
+
+    if t == 'missing':
+        if selected_option == 1:
+            return (
+                f'[{ref}] Confirm:\n'
+                f'Expected submission for {fac} ({per}): {value}\n\n'
+                f'Reply YES to confirm or NO to re-enter.'
+            )
+        if selected_option == 3:
+            return (
+                f'[{ref}] Confirm:\n'
+                f'Record facility closure for {fac} ({per}).\n'
+                f'Flagged for HQ zero imputation.\n\n'
+                f'Reply YES to confirm or NO to choose again.'
+            )
+
+    return f'[{ref}] Confirm value {value}? Reply YES or NO.'
 
 
 def _execute_write_back(issue, selected_option, value):
@@ -234,9 +280,12 @@ def _execute_write_back(issue, selected_option, value):
 
     def _write(de_uid, val, note):
         try:
+            # Always write integer doses — DHIS2 rejects decimal values for
+            # integer-typed data elements (causes silent 409 failure otherwise).
+            int_val = str(int(round(float(val))))
             dc.post_data_value(
                 de_uid, issue['facility_uid'], issue['period'],
-                coc, val, comment=f'AHEAD DQ correction [{ref}]'
+                coc, int_val, comment=f'AHEAD DQ correction [{ref}]'
             )
             return note
         except Exception as e:
@@ -305,40 +354,6 @@ def _resolve(conn, conv_id, ref_id, status, action_note):
         "UPDATE conversations SET state='closed', updated_at=CURRENT_TIMESTAMP WHERE id=?",
         (conv_id,)
     )
-
-
-def _build_confirmation_prompt(issue, value, selected_option):
-    """
-    YES/NO confirmation message before writing a corrected value to DHIS2.
-    Sent after the user provides a follow-up value for options that trigger write-back.
-    """
-    ref = issue['ref_id']
-    fac = issue['facility_name']
-    per = period_label(issue['period'])
-
-    if issue['issue_type'] == 'outlier' and selected_option == 4:
-        old = int(issue['flagged_value']) if issue['flagged_value'] else '?'
-        return (
-            f'[{ref}] Confirm change:\n'
-            f'{issue["data_element"]} under 1yr — {fac} ({per})\n'
-            f'{old} → {value}\n\n'
-            f'Reply YES to update DHIS2 or NO to re-enter.'
-        )
-    if issue['issue_type'] == 'dtp' and selected_option == 4:
-        old = int(issue['flagged_value']) if issue['flagged_value'] else '?'
-        return (
-            f'[{ref}] Confirm change:\n'
-            f'DTP3 — {fac} ({per})\n'
-            f'{old} → {value}\n\n'
-            f'Reply YES to update DHIS2 or NO to re-enter.'
-        )
-    if issue['issue_type'] == 'missing' and selected_option == 1:
-        return (
-            f'[{ref}] Confirm:\n'
-            f'Expected submission date for {fac} ({per}): {value}\n\n'
-            f'Reply YES to confirm or NO to re-enter.'
-        )
-    return f'[{ref}] Confirm value {value}? Reply YES or NO.'
 
 
 # ── Public: notify a new issue ────────────────────────────────────────────────
@@ -444,7 +459,7 @@ def handle_inbound(from_phone, text):
                     "selected_option=?, followup_value=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
                     (option, value, conv['id'])
                 )
-                return _build_auto_confirmation_prompt(issue, option, value, description)
+                return _build_confirmation_prompt(issue, value, option)
 
             # Immediate resolution — no write-back
             action = _ACTION_NOTES.get(issue['issue_type'], {}).get(option, 'Response recorded.')

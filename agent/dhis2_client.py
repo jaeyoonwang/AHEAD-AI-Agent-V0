@@ -261,7 +261,7 @@ def compute_surrounding_average(dataset_uid, de_uid, ou_uid, period, coc_uid, n_
 
     if len(values) < 2:
         return None
-    return round(sum(values) / len(values), 1)
+    return int(round(sum(values) / len(values)))
 
 
 def health_check():
