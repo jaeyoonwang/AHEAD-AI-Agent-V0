@@ -180,6 +180,29 @@ def webhook_sms():
     return Response(twiml, mimetype='text/xml')
 
 
+@app.route('/api/resend/<ref_id>', methods=['POST'])
+def api_resend(ref_id):
+    """
+    Resend the WhatsApp/SMS notification for an open issue.
+    Useful when the sandbox session has expired or a message wasn't delivered.
+    Closes any existing open conversation first so a fresh one is created.
+    """
+    with get_conn() as conn:
+        issue = conn.execute('SELECT * FROM issues WHERE ref_id=?', (ref_id,)).fetchone()
+        if not issue:
+            return jsonify({'error': 'not found'}), 404
+        if issue['status'] in ('resolved', 'ignored'):
+            return jsonify({'error': 'issue already closed'}), 400
+        conn.execute(
+            "UPDATE conversations SET state='closed', updated_at=CURRENT_TIMESTAMP "
+            "WHERE issue_ref_id=? AND state != 'closed'",
+            (ref_id,)
+        )
+    sm.notify_issue(ref_id)
+    print(f'[APP] resend triggered for {ref_id}')
+    return jsonify({'ok': True, 'ref_id': ref_id})
+
+
 @app.route('/api/scan', methods=['POST'])
 def api_scan():
     """
@@ -209,17 +232,15 @@ def api_health():
 def issue_log():
     """HTML issue log dashboard with live conversation state."""
     with get_conn() as conn:
-        # Join issues with the latest conversation state per issue
         rows_raw = conn.execute("""
             SELECT i.*,
                    c.state      AS conv_state,
-                   c.followup_value AS conv_value
+                   c.updated_at AS conv_updated_at
             FROM issues i
             LEFT JOIN (
                 SELECT issue_ref_id,
                        state,
-                       followup_value,
-                       MAX(updated_at) AS latest
+                       MAX(updated_at) AS updated_at
                 FROM conversations
                 GROUP BY issue_ref_id
             ) c ON i.ref_id = c.issue_ref_id
@@ -227,25 +248,44 @@ def issue_log():
             LIMIT 200
         """).fetchall()
 
-    # Derive a display status from issue status + conversation state
     def display_status(issue_status, conv_state):
-        if issue_status == 'resolved':
-            return 'RESOLVED',    '#27ae60'
-        if issue_status == 'ignored':
-            return 'CONFIRMED OK', '#7f8c8d'
-        if issue_status == 'escalated':
-            return 'ESCALATED',   '#c0392b'
-        if conv_state == 'awaiting_confirmation':
-            return 'CONFIRMING',  '#8e44ad'
-        if conv_state == 'awaiting_followup':
-            return 'IN PROGRESS', '#2980b9'
-        if conv_state == 'awaiting_option':
-            return 'NOTIFIED',    '#d35400'
+        if issue_status == 'resolved':   return 'RESOLVED',     '#27ae60'
+        if issue_status == 'ignored':    return 'CONFIRMED OK', '#7f8c8d'
+        if issue_status == 'escalated':  return 'ESCALATED',    '#c0392b'
+        if conv_state == 'awaiting_confirmation': return 'CONFIRMING',  '#8e44ad'
+        if conv_state == 'awaiting_followup':     return 'IN PROGRESS', '#2980b9'
+        if conv_state == 'awaiting_option':       return 'NOTIFIED',    '#d35400'
         return 'OPEN', '#e67e22'
+
+    def fmt_ts(ts):
+        """Format a SQLite timestamp string to 'Jun 4, 17:35'."""
+        if not ts:
+            return ''
+        try:
+            from datetime import datetime
+            dt = datetime.fromisoformat(ts.replace('T', ' ').split('.')[0])
+            months = ['Jan','Feb','Mar','Apr','May','Jun',
+                      'Jul','Aug','Sep','Oct','Nov','Dec']
+            return f'{months[dt.month-1]} {dt.day}, {dt.strftime("%H:%M")}'
+        except Exception:
+            return ts[:16]
+
+    def status_ts(i):
+        """Pick the most relevant timestamp for the current status."""
+        status = i['status']
+        conv   = i['conv_state']
+        if status == 'resolved':   return fmt_ts(i['resolved_at'])
+        if status in ('ignored', 'escalated'): return fmt_ts(i['resolved_at'])
+        if conv in ('awaiting_followup', 'awaiting_confirmation'):
+            return fmt_ts(i['conv_updated_at'])
+        if conv == 'awaiting_option': return fmt_ts(i['notified_at'])
+        return fmt_ts(i['created_at'])
 
     rows = []
     for i in rows_raw:
         label, color = display_status(i['status'], i['conv_state'])
+        ts            = status_ts(i)
+        is_open       = i['status'] not in ('resolved', 'ignored', 'escalated')
 
         element  = i['data_element'] or '—'
         value    = f'{int(i["flagged_value"])}' if i['flagged_value'] else '—'
@@ -257,6 +297,17 @@ def issue_log():
                 lo = max(0, int(i['expected_low']))
                 expected = f'{lo}–{int(i["expected_high"])}'
 
+        resend_btn = (
+            f'<form method="post" action="/api/resend/{i["ref_id"]}" style="display:inline">'
+            f'<button class="resend-btn" title="Resend WhatsApp alert">↺ Resend</button></form>'
+            if is_open else ''
+        )
+
+        status_cell = (
+            f'<span style="color:{color};font-weight:bold">{label}</span>'
+            f'<br><span style="font-size:0.78em;color:#999">{ts}</span>'
+        )
+
         rows.append(f"""
           <tr>
             <td><code>{i['ref_id']}</code></td>
@@ -266,12 +317,13 @@ def issue_log():
             <td>{element}</td>
             <td>{value}</td>
             <td>{expected}</td>
-            <td style="color:{color};font-weight:bold">{label}</td>
+            <td>{status_cell}</td>
             <td>{i['cascade_level']}</td>
             <td style="font-size:0.85em;color:#555">{i['resolution_notes'] or ''}</td>
+            <td>{resend_btn}</td>
           </tr>""")
 
-    table = '\n'.join(rows) if rows else '<tr><td colspan="10">No issues yet.</td></tr>'
+    table = '\n'.join(rows) if rows else '<tr><td colspan="11">No issues yet.</td></tr>'
 
     html = f"""<!DOCTYPE html>
 <html><head>
@@ -291,6 +343,9 @@ def issue_log():
     tr:last-child td {{ border-bottom: none; }}
     tr:hover td {{ background: #f8f9fa; }}
     code {{ background: #ecf0f1; padding: 2px 6px; border-radius: 3px; }}
+    .resend-btn {{ background: #ecf0f1; border: 1px solid #bdc3c7; border-radius: 4px;
+                   padding: 3px 8px; font-size: .8rem; cursor: pointer; color: #555; }}
+    .resend-btn:hover {{ background: #d5d8dc; }}
   </style>
 </head><body>
   <h1>AHEAD DQ Issue Log</h1>
@@ -300,7 +355,7 @@ def issue_log():
       <tr>
         <th>Ref ID</th><th>Type</th><th>Facility</th><th>Period</th>
         <th>Element</th><th>Value</th><th>Expected</th>
-        <th>Status</th><th>Level</th><th>Resolution</th>
+        <th>Status</th><th>Level</th><th>Resolution</th><th></th>
       </tr>
     </thead>
     <tbody>{table}</tbody>
