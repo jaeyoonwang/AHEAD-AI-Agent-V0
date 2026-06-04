@@ -71,9 +71,9 @@ _MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','De
 # to figure out which field is being discussed.
 _ANTIGEN_LABELS = {
     'BCG':    'BCG (under 1 year)',
-    'Penta1': 'DTP-HepB-HIB 1 (under 1 year)',
-    'Penta3': 'DTP-HepB-HIB 3 (under 1 year)',
-    'MR1':    'MR 1 (under 1 year)',
+    'Penta1': 'DTP1 (under 1 year)',
+    'Penta3': 'DTP3 (under 1 year)',
+    'MR1':    'MR1 (under 1 year)',
 }
 
 
