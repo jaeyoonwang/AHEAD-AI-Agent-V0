@@ -106,7 +106,7 @@ def get_outliers(dataset_uid, root_ou_uid, start_date, end_date,
             groups[(dv['orgUnit'], dv['dataElement'], dv['categoryOptionCombo'])].append(
                 (dv['period'], float(dv['value']))
             )
-        except (ValueError, KeyError):
+        except (ValueError, KeyError, TypeError):
             pass
 
     outliers = []
@@ -170,7 +170,7 @@ def get_data_values(dataset_uid, org_unit_uid, period):
     for dv in data.get('dataValues', []):
         try:
             result[(dv['dataElement'], dv['categoryOptionCombo'])] = float(dv['value'])
-        except (ValueError, KeyError):
+        except (ValueError, KeyError, TypeError):
             pass
     return result
 
