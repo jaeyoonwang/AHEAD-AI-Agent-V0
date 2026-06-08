@@ -117,7 +117,7 @@ def build_outlier_message(ref_id, facility_name, period, antigen,
         f'\n'
         f'Reply with option number:\n'
         f'1. Replace with 6-month average\n'
-        f'2. Keep as-is (no action)\n'
+        f'2. Keep as-is (add comment)\n'
         f'3. Set to zero\n'
         f'4. Replace with specific value\n'
         f'5. At health facility doses only\n'
@@ -148,11 +148,11 @@ def build_dtp_message(ref_id, facility_name, period, penta1, penta3):
         f'({direction}, gap: {diff_pct}%)\n'
         f'\n'
         f'Reply with option number:\n'
-        f'1. Keep as-is (no action)\n'
+        f'1. Keep as-is (add comment)\n'
         f'2. Use DTP1 value for both\n'
         f'3. Use DTP3 value for both\n'
         f'4. Replace with specific value\n'
-        f'5. Other reason'
+        f'5. Other reason (add comment)'
     )
 
 

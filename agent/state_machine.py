@@ -115,17 +115,11 @@ def _parse_followup_value(text, issue_type, selected_option):
 # Option numbers map to the AHEAD Excel dropdown schema from the reference guide.
 _ACTION_NOTES = {
     'outlier': {
-        2: 'Confirmed correct. No data change.',
         5: 'At-facility doses only. Noted for HQ manual adjustment.',
         6: 'Outreach doses only. Noted for HQ manual adjustment.',
     },
-    'dtp': {
-        1: 'Confirmed correct. No data change.',
-        5: 'Reason recorded. No automatic data change.',
-    },
     'missing': {
         2: 'Data loss recorded. Flagged for HQ imputation (6-month average).',
-        4: 'Reason recorded.',
     },
 }
 
@@ -147,9 +141,13 @@ _NEEDS_FOLLOWUP = {
 }
 
 # Options that ask the user to type a free-text reason (no write-back).
+# Value is the issue status to set on resolution ('ignored' = deliberate no-action,
+# 'resolved' = reason captured and logged).
 _NEEDS_REASON = {
-    ('dtp',     5),   # other reason
-    ('missing', 4),   # other reason
+    ('outlier', 2): 'ignored',   # keep as-is — explanation required (AHEAD 2.2)
+    ('dtp',     1): 'ignored',   # keep as-is — comment required (AHEAD 2.4)
+    ('dtp',     5): 'resolved',  # other reason
+    ('missing', 4): 'resolved',  # other reason
 }
 
 
@@ -520,9 +518,11 @@ def handle_inbound(from_phone, text):
             reason = body.strip()
             if not reason:
                 return f'[{ref_id}] Please type your reason.'
-            note = f'Other reason: {reason}'
-            _resolve(conn, conv['id'], ref_id, 'resolved', note)
-            return build_confirmation(ref_id, 'Reason recorded. No data change.')
+            selected = conv['selected_option']
+            status = _NEEDS_REASON.get((issue['issue_type'], selected), 'resolved')
+            note = f'Comment: {reason}'
+            _resolve(conn, conv['id'], ref_id, status, note)
+            return build_confirmation(ref_id, 'Comment recorded. No data change.')
 
         # ── awaiting_confirmation ────────────────────────────────────────────
         elif state == 'awaiting_confirmation':
