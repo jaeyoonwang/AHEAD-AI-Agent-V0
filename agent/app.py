@@ -130,6 +130,7 @@ def _job_poll_changes():
         row = conn.execute("SELECT value FROM poll_state WHERE key='last_checked'").fetchone()
         since = row['value'] if row else '2024-01-01T00:00:00'
 
+    print(f'[POLL] checking since {since}')
     try:
         changes = dc.get_changes_since(cfg.ROUTINE_DATASET_UID, cfg.ROOT_ORG_UNIT_UID, since)
     except Exception as e:
@@ -231,16 +232,25 @@ def api_reset_demo():
 
     errors = []
 
-    # 1. Delete all data values for the demo facility/period from DHIS2
+    # 1. Clear all data values for the demo facility/period in DHIS2.
+    #    POST with value="" is the DHIS2-recommended way to blank a value
+    #    (DELETE returns 409 on locked/approved datasets).
+    cleared = 0
     for de_uid in cfg.DATA_ELEMENTS.values():
         for coc_uid in cfg.CATEGORY_OPTION_COMBOS.values():
             try:
-                dc._sess.delete(f'{dc.BASE}/dataValues', params={
+                r = dc._sess.post(f'{dc.BASE}/dataValues', params={
                     'de': de_uid, 'ou': demo_facility,
                     'pe': demo_period, 'co': coc_uid,
+                    'value': '',
                 }, timeout=10)
+                if r.status_code in (200, 201, 204):
+                    cleared += 1
+                else:
+                    errors.append(f'CLEAR de={de_uid} → HTTP {r.status_code}: {r.text[:120]}')
             except Exception as e:
                 errors.append(str(e))
+    print(f'[APP] demo reset — cleared {cleared} DHIS2 values; {len(errors)} error(s)')
 
     # 2. Reset agent DB and advance poll cursor to now
     #    (clearing poll_state would cause the next poll to default to 2024-01-01
