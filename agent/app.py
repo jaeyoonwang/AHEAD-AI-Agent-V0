@@ -214,26 +214,24 @@ def webhook_sms():
     return Response(twiml, mimetype='text/xml')
 
 
-@app.route('/api/reset-demo', methods=['POST'])
-def api_reset_demo():
+def _reset_demo():
     """
-    Full demo reset: clears agent DB state AND deletes June 2026 data values
-    from DHIS2 for the demo facility (Addi Arekay HC).
+    Full demo reset: blank all DHIS2 data for the demo facility/period, wipe
+    the agent DB, and advance the poll cursor to now.
 
     DHIS2 does not update lastUpdated when you save an identical value, so the
-    poll cannot detect a 'resubmission' of the same number. Clearing the DHIS2
-    values first ensures every demo run starts from an empty form — entering
-    BCG=970 is always a genuine first write with a fresh lastUpdated.
+    poll cannot detect a resubmission of the same number. Blanking the DHIS2
+    values first ensures every demo run starts from an empty form.
 
-    Call this instead of the manual python3 reset script between demo runs.
+    Called by POST /api/reset-demo and by --reset at startup.
     """
     demo_facility = 'aV3ume00zx5'   # Addi Arekay Health Center
     demo_period   = '202606'         # June 2026
 
     errors = []
 
-    # 1. Clear all data values for the demo facility/period in DHIS2.
-    #    POST with value="" is the DHIS2-recommended way to blank a value
+    # 1. Blank all data values for the demo facility/period in DHIS2.
+    #    POST value="" is the DHIS2-supported way to clear a value
     #    (DELETE returns 409 on locked/approved datasets).
     cleared = 0
     for de_uid in cfg.DATA_ELEMENTS.values():
@@ -250,11 +248,8 @@ def api_reset_demo():
                     errors.append(f'CLEAR de={de_uid} → HTTP {r.status_code}: {r.text[:120]}')
             except Exception as e:
                 errors.append(str(e))
-    print(f'[APP] demo reset — cleared {cleared} DHIS2 values; {len(errors)} error(s)')
 
-    # 2. Reset agent DB and advance poll cursor to now
-    #    (clearing poll_state would cause the next poll to default to 2024-01-01
-    #    and flood with historical data — set to now instead)
+    # 2. Wipe agent DB and advance poll cursor past the blanking writes.
     now = dc.now_iso()
     with get_conn() as conn:
         conn.execute('DELETE FROM conversations')
@@ -263,7 +258,13 @@ def api_reset_demo():
             "INSERT OR REPLACE INTO poll_state (key, value) VALUES ('last_checked', ?)", (now,)
         )
 
-    print(f'[APP] demo reset — DHIS2 Jun 2026 cleared, DB reset, poll cursor → {now}')
+    print(f'[APP] demo reset — cleared {cleared} DHIS2 values; {len(errors)} error(s); cursor → {now}')
+    return errors
+
+
+@app.route('/api/reset-demo', methods=['POST'])
+def api_reset_demo():
+    errors = _reset_demo()
     return jsonify({'ok': True, 'dhis2_errors': errors})
 
 
@@ -528,6 +529,8 @@ def _start_ngrok(port=5001):
 
 if __name__ == '__main__':
     _startup()
+    if '--reset' in sys.argv:
+        _reset_demo()
     _sched  = _start_scheduler()
     _ngrok  = _start_ngrok()
 
