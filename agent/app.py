@@ -249,7 +249,23 @@ def _reset_demo():
             except Exception as e:
                 errors.append(str(e))
 
-    # 2. Wipe agent DB and advance poll cursor past the blanking writes.
+    # 2. Remove the "Complete" registration so the form shows as incomplete.
+    try:
+        r = dc._sess.delete(f'{dc.BASE}/completeDataSetRegistrations', params={
+            'ds': cfg.ROUTINE_DATASET_UID,
+            'pe': demo_period,
+            'ou': demo_facility,
+        }, timeout=10)
+        if r.status_code in (200, 204):
+            print('[APP] demo reset — complete registration removed')
+        elif r.status_code == 404:
+            pass  # already incomplete, nothing to do
+        else:
+            errors.append(f'UNCOMPLETE → HTTP {r.status_code}: {r.text[:120]}')
+    except Exception as e:
+        errors.append(str(e))
+
+    # 3. Wipe agent DB and advance poll cursor past the blanking writes.
     now = dc.now_iso()
     with get_conn() as conn:
         conn.execute('DELETE FROM conversations')
