@@ -146,6 +146,12 @@ _NEEDS_FOLLOWUP = {
     ('missing', 1),   # will submit by [date]
 }
 
+# Options that ask the user to type a free-text reason (no write-back).
+_NEEDS_REASON = {
+    ('dtp',     5),   # other reason
+    ('missing', 4),   # other reason
+}
+
 
 def _compute_auto_action(issue, option):
     """
@@ -413,6 +419,7 @@ def handle_inbound(from_phone, text):
     Conversation states:
       awaiting_option       user picks a numbered option
       awaiting_followup     user provides a value (dose count, date, etc.)
+      awaiting_reason       user types a free-text reason (other reason options)
       awaiting_confirmation user confirms YES/NO before any DHIS2 write
       closed                done
     """
@@ -449,6 +456,15 @@ def handle_inbound(from_phone, text):
             if option is None:
                 n = _OPTION_COUNTS.get(issue['issue_type'], 6)
                 return f'[{ref_id}] Please reply with a number 1–{n}.'
+
+            # Option needs a free-text reason
+            if (issue['issue_type'], option) in _NEEDS_REASON:
+                conn.execute(
+                    "UPDATE conversations SET state='awaiting_reason', "
+                    "selected_option=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (option, conv['id'])
+                )
+                return f'[{ref_id}] Please describe the reason:'
 
             # Option needs user-provided value first
             if (issue['issue_type'], option) in _NEEDS_FOLLOWUP:
@@ -498,6 +514,15 @@ def handle_inbound(from_phone, text):
                 (conv['id'],)
             )
             return _build_confirmation_prompt(issue, value, selected)
+
+        # ── awaiting_reason ──────────────────────────────────────────────────
+        elif state == 'awaiting_reason':
+            reason = body.strip()
+            if not reason:
+                return f'[{ref_id}] Please type your reason.'
+            note = f'Other reason: {reason}'
+            _resolve(conn, conv['id'], ref_id, 'resolved', note)
+            return build_confirmation(ref_id, 'Reason recorded. No data change.')
 
         # ── awaiting_confirmation ────────────────────────────────────────────
         elif state == 'awaiting_confirmation':

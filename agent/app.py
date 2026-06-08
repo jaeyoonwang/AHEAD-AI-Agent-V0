@@ -416,12 +416,19 @@ def issue_log():
         except Exception:
             period_display = i['period']
 
-        # ── Value and expected — format differs by issue type ─────────────────
+        # ── Issue type label ──────────────────────────────────────────────────
+        _type_labels = {
+            'outlier': 'Outlier',
+            'dtp':     'DTP inconsistency',
+            'missing': 'Missing report',
+        }
+        issue_type_label = _type_labels.get(i['issue_type'], i['issue_type'].capitalize())
+
+        # ── Value: raw entered values only (no comparisons) ──────────────────
         if i['issue_type'] == 'dtp':
-            # VALUE shows the observed comparison; EXPECTED shows only the threshold rule
             p3 = int(i['flagged_value']) if i['flagged_value'] is not None else '?'
             p1 = int(i['expected_low'])  if i['expected_low']  is not None else '?'
-            value    = f'DTP3={p3} &gt; DTP1={p1}'
+            value    = f'DTP1={p1}, DTP3={p3}'
             expected = 'max 30% gap'
         elif i['issue_type'] == 'missing':
             value    = '—'
@@ -447,7 +454,7 @@ def issue_log():
         rows.append(f"""
           <tr>
             <td><code>{i['ref_id']}</code></td>
-            <td>{i['issue_type'].upper()}</td>
+            <td>{issue_type_label}</td>
             <td>{i['facility_name']}</td>
             <td>{period_display}</td>
             <td>{element}</td>
@@ -489,7 +496,7 @@ def issue_log():
   <table>
     <thead>
       <tr>
-        <th>Ref ID</th><th>Type</th><th>Facility</th><th>Period</th>
+        <th>Ref ID</th><th>Issue Type</th><th>Facility</th><th>Period</th>
         <th>Element</th><th>Value</th><th>Expected</th>
         <th>Status</th><th>Level</th><th>Resolution</th><th></th>
       </tr>
