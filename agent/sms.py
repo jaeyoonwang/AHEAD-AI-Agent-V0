@@ -115,7 +115,7 @@ def build_outlier_message(ref_id, facility_name, period, antigen,
         f'{facility_name} — {period_label(period)}\n'
         f'{antigen_label(antigen)}: {int(value)} doses (expected {exp})\n'
         f'\n'
-        f'Reply with option number:\n'
+        f'Reply with a number only (1-6):\n'
         f'1. Replace with 6-month average\n'
         f'2. Keep as-is (add comment)\n'
         f'3. Set to zero\n'
@@ -147,7 +147,7 @@ def build_dtp_message(ref_id, facility_name, period, penta1, penta3):
         f'{p3_label}: {int(penta3)} doses\n'
         f'({direction}, gap: {diff_pct}%)\n'
         f'\n'
-        f'Reply with option number:\n'
+        f'Reply with a number only (1-5):\n'
         f'1. Keep as-is (add comment)\n'
         f'2. Use DTP1 value for both\n'
         f'3. Use DTP3 value for both\n'
@@ -175,11 +175,11 @@ def build_missing_message(ref_id, facility_name, period):
         f'{facility_name} — {period_label(period)}\n'
         f'Monthly EPI report not received.\n'
         f'\n'
-        f'Reply SUBMIT if already submitted, or:\n'
+        f'Reply SUBMIT if already submitted, or reply with a number only (1-4):\n'
         f'1. Will submit by [date]\n'
         f'2. Data cannot be recovered\n'
         f'3. Facility closed / no service that month\n'
-        f'4. Other reason'
+        f'4. Other reason (add comment)'
     )
 
 
@@ -189,11 +189,11 @@ def build_followup_prompt(issue_type, selected_option):
     Returns None if the option resolves immediately or is auto-computed.
     """
     if issue_type == 'outlier' and selected_option == 4:
-        return 'Please reply with the correct value (numbers only, e.g. 97).'
+        return 'Reply with the correct dose count (numbers only, e.g. 97). No other text.'
     if issue_type == 'dtp' and selected_option == 4:
-        return 'Please reply with the correct value (numbers only).'
+        return 'Reply with the correct dose count (numbers only, e.g. 60). No other text.'
     if issue_type == 'missing' and selected_option == 1:
-        return 'Please reply with the expected submission date (e.g. 15 Jun).'
+        return 'Reply with the expected submission date (e.g. 15 Jun).'
     return None
 
 

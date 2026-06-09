@@ -8,7 +8,7 @@ Entry points:
   escalate_due_issues()           — called every 30 min; escalates issues past their deadline
 """
 
-import os, sys, pathlib, json
+import os, sys, pathlib, re
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
@@ -21,16 +21,6 @@ from sms import (send_sms, build_outlier_message, build_dtp_message,
                  build_confirmation, build_escalation_notice,
                  period_label, antigen_label)
 
-_ai = None
-
-
-def _get_ai():
-    global _ai
-    if _ai is None:
-        import anthropic
-        _ai = anthropic.Anthropic(api_key=os.environ.get('CLAUDE_API_KEY', ''))
-    return _ai
-
 
 # ── Option count per issue type ───────────────────────────────────────────────
 
@@ -41,72 +31,30 @@ _OPTION_COUNTS = {'outlier': 6, 'dtp': 5, 'missing': 4}
 
 def _parse_option(text, issue_type):
     """
-    Return the integer option the user selected, or None if unclear.
-    Uses Claude with a digit fallback for clean numeric replies.
+    Return the integer option number if the reply is a valid menu choice, else None.
+    Accepts only a bare digit (or digit with surrounding whitespace) in range 1–N.
     """
     stripped = text.strip()
-
-    # Fast path: single digit reply
-    if stripped.isdigit():
-        n = int(stripped)
-        return n if 1 <= n <= _OPTION_COUNTS.get(issue_type, 6) else None
-
     n_opts = _OPTION_COUNTS.get(issue_type, 6)
-    prompt = (
-        f'A user received an SMS DQ alert with {n_opts} numbered options. '
-        f'They replied: "{stripped}"\n\n'
-        f'Which option (1–{n_opts}) did they select? '
-        f'Reply with JSON only, e.g. {{"option": 2}} or {{"option": null}} if unclear.'
-    )
-    try:
-        msg = _get_ai().messages.create(
-            model='claude-haiku-4-5-20251001',
-            max_tokens=30,
-            messages=[{'role': 'user', 'content': prompt}]
-        )
-        data = json.loads(msg.content[0].text.strip())
-        opt  = data.get('option')
-        return int(opt) if opt and 1 <= int(opt) <= n_opts else None
-    except Exception as e:
-        print(f'[SM] option parse error: {e}')
-        return None
+    if re.fullmatch(r'\d+', stripped):
+        n = int(stripped)
+        if 1 <= n <= n_opts:
+            return n
+    return None
 
-
-# ── Claude: extract follow-up value ──────────────────────────────────────────
 
 def _parse_followup_value(text, issue_type, selected_option):
     """
-    Extract a numeric correction or date string from the user's follow-up reply.
-    Returns the value as a string, or None if extraction fails.
+    For numeric correction options: accept only a bare integer or decimal.
+    For the missing-report date option: accept the reply as-is (free text).
+    Returns the value as a string, or None if validation fails.
     """
     stripped = text.strip()
-
-    # Fast path: plain number
-    if stripped.replace('.', '', 1).isdigit():
-        return stripped
-
     if issue_type == 'missing' and selected_option == 1:
-        prompt = (
-            f'A user replied with an expected submission date: "{stripped}"\n'
-            f'Extract the date string. Reply JSON only: {{"value": "<date or null>"}}'
-        )
-    else:
-        prompt = (
-            f'A user is providing a corrected numeric value. They said: "{stripped}"\n'
-            f'Extract the number. Reply JSON only: {{"value": <number or null>}}'
-        )
-    try:
-        msg = _get_ai().messages.create(
-            model='claude-haiku-4-5-20251001',
-            max_tokens=30,
-            messages=[{'role': 'user', 'content': prompt}]
-        )
-        data = json.loads(msg.content[0].text.strip())
-        val  = data.get('value')
-        return str(val) if val is not None else None
-    except Exception as e:
-        print(f'[SM] followup parse error: {e}')
-        return None
+        return stripped if stripped else None
+    if re.fullmatch(r'\d+(\.\d+)?', stripped):
+        return stripped
+    return None
 
 
 # ── Resolution logic ──────────────────────────────────────────────────────────
@@ -453,7 +401,7 @@ def handle_inbound(from_phone, text):
             option = _parse_option(body, issue['issue_type'])
             if option is None:
                 n = _OPTION_COUNTS.get(issue['issue_type'], 6)
-                return f'[{ref_id}] Please reply with a number 1–{n}.'
+                return f'[{ref_id}] Invalid reply. Please reply with a single number between 1 and {n} only.'
 
             # Option needs a free-text reason
             if (issue['issue_type'], option) in _NEEDS_REASON:
@@ -500,7 +448,7 @@ def handle_inbound(from_phone, text):
             value    = _parse_followup_value(body, issue['issue_type'], selected)
 
             if value is None:
-                return f'[{ref_id}] Please reply with a numeric value only.'
+                return f'[{ref_id}] Invalid reply. Please reply with a number only (e.g. 97).'
 
             conn.execute(
                 'UPDATE conversations SET followup_value=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
@@ -545,7 +493,7 @@ def handle_inbound(from_phone, text):
                 return _build_issue_message(issue)
 
             else:
-                return f'[{ref_id}] Please reply YES to confirm or NO to choose again.'
+                return f'[{ref_id}] Invalid reply. Please reply YES to confirm or NO to choose again.'
 
     return None
 
