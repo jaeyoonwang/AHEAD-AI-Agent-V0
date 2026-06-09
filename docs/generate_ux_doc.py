@@ -140,18 +140,19 @@ sp()
 
 # ── 3. Message Templates ──────────────────────────────────────────────────────
 h1('3. SMS Message Templates')
-body('All outbound notifications present numbered multiple-choice options — the same response categories used in the AHEAD reference guide (sections 2.2–2.4). The worker replies with a number (1, 2, 3 etc.). Options that modify DHIS2 data require a YES/NO confirmation before the write-back is applied. Options requiring additional input (a specific value or a brief explanation) trigger a short follow-up question before the confirmation step.')
+body('All outbound notifications present numbered multiple-choice options — the same response categories used in the AHEAD reference guide (sections 2.2–2.4). The worker replies with a single digit only. Any other reply triggers a re-prompt: "Invalid reply. Please reply with a single number between 1 and N only." Options that modify DHIS2 data require a YES/NO confirmation before the write-back is applied. Options that require a comment or reason (keep as-is, other reason) prompt the worker for free text, which is logged as-is. Options requiring a numeric correction prompt for a number only.')
 sp()
 
 h2('3.1  Outlier — initial notification (6 options)')
-body('Sent when a data value is flagged by outlier detection. Aligned with AHEAD guide section 2.2. Options 1, 3, and 4 write data back to DHIS2 and require a YES/NO confirmation. Options 5 and 6 are noted for HQ manual adjustment with no auto write-back. Option 2 resolves immediately with no data change.')
+body('Sent when a data value is flagged by outlier detection. Aligned with AHEAD guide section 2.2. Options 1, 3, and 4 write data back to DHIS2 and require a YES/NO confirmation. Options 5 and 6 are noted for HQ manual adjustment with no auto write-back. Option 2 prompts the worker for a required explanation comment before closing (per AHEAD guide 2.2 — "keep as-is WITH explanation").')
 mono(
     'AHEAD DQ Alert [DQ-4XDF]\n'
     'Addi Arekay Health Center — Jun 2026\n'
-    'BCG: 970 doses (expected 79–114)\n'
-    'Reply with option number:\n'
+    'BCG (under 1 year): 970 doses (expected 79–114)\n'
+    '\n'
+    'Reply with a number only (1-6):\n'
     '1. Replace with 6-month average\n'
-    '2. Keep as-is (no action)\n'
+    '2. Keep as-is (add comment)\n'
     '3. Set to zero\n'
     '4. Replace with specific value\n'
     '5. At health facility doses only\n'
@@ -159,15 +160,27 @@ mono(
 )
 sp()
 
-h2('3.2  Outlier — follow-up for option 4 (specific value)')
-body('Agent asks for the corrected value before proceeding to the YES/NO confirmation step.')
+h2('3.2  Outlier — follow-up for option 2 (keep as-is — comment required)')
+body('Agent prompts the worker for a mandatory explanation before closing. Any non-empty text is accepted as-is and logged in the resolution notes. No DHIS2 write-back.')
 mono(
-    '[DQ-4XDF] Please reply with the correct value\n'
-    '(numbers only, e.g. 97).'
+    '[DQ-4XDF] Please describe the reason:'
+)
+sp()
+body('After the worker replies:')
+mono(
+    '[DQ-4XDF] Noted. Comment recorded. No data change. Thank you.'
 )
 sp()
 
-h2('3.3  Outlier — YES/NO confirmation before DHIS2 write-back')
+h2('3.3  Outlier — follow-up for option 4 (specific value)')
+body('Agent asks for the corrected value before proceeding to the YES/NO confirmation step. Only a bare integer or decimal is accepted — anything else triggers a re-prompt.')
+mono(
+    '[DQ-4XDF] Reply with the correct dose count\n'
+    '(numbers only, e.g. 97). No other text.'
+)
+sp()
+
+h2('3.4  Outlier — YES/NO confirmation before DHIS2 write-back')
 body('Shown before any data modification. The confirmation message states exactly what will change. If the user replies NO, the original alert is re-sent and they can choose a different option.')
 mono(
     '[DQ-4XDF] Confirm change:\n'
@@ -191,7 +204,7 @@ mono(
 )
 sp()
 
-h2('3.4  Outlier — resolution confirmation')
+h2('3.5  Outlier — resolution confirmation')
 body('Sent after the user replies YES and the write-back is applied.')
 mono(
     '[DQ-4XDF] Noted. Value corrected to 97 in DHIS2. Thank you.'
@@ -209,30 +222,44 @@ mono(
 )
 sp()
 
-h2('3.5  DTP1/DTP3 inconsistency — initial notification (5 options)')
-body('Sent when Penta3 > Penta1. Aligned with AHEAD guide section 2.3. Options 2 and 3 set DTP3 = DTP1 or DTP1 = DTP3 respectively; option 4 uses a user-supplied value. All three require YES/NO confirmation. Option 1 resolves immediately. Option 5 is noted with no auto write-back.')
+h2('3.6  DTP1/DTP3 inconsistency — initial notification (5 options)')
+body('Sent when Penta3 > Penta1. Aligned with AHEAD guide section 2.4. Options 2 and 3 set DTP3 = DTP1 or DTP1 = DTP3 respectively; option 4 uses a user-supplied value. All three require YES/NO confirmation. Options 1 and 5 prompt for a required comment before closing — per AHEAD guide 2.4 ("keep as-is WITH comment" / "other, specify in comment").')
 mono(
     'AHEAD DQ Alert [DQ-BK19]\n'
     'Addi Arekay Health Center — Jun 2026\n'
-    'Penta1 under-1: 60 | Penta3 under-1: 90\n'
-    'Penta3 exceeds Penta1 by 50%.\n'
-    'Reply with option number:\n'
-    '1. Keep as-is\n'
+    'DTP1 (under 1 year): 60 doses\n'
+    'DTP3 (under 1 year): 90 doses\n'
+    '(DTP3 > DTP1, gap: 50%)\n'
+    '\n'
+    'Reply with a number only (1-5):\n'
+    '1. Keep as-is (add comment)\n'
     '2. Use DTP1 value for both\n'
     '3. Use DTP3 value for both\n'
     '4. Replace with specific value\n'
-    '5. Other'
+    '5. Other reason (add comment)'
 )
 sp()
 
-h2('3.6  DTP — follow-up for option 4 (specific value)')
+h2('3.7  DTP — follow-up for options 1 and 5 (comment required)')
+body('Agent prompts for a required comment. Any non-empty text is accepted and logged. No DHIS2 write-back.')
 mono(
-    '[DQ-BK19] Please reply with the correct value\n'
-    '(numbers only, e.g. 72).'
+    '[DQ-BK19] Please describe the reason:'
+)
+sp()
+body('After the worker replies:')
+mono(
+    '[DQ-BK19] Noted. Comment recorded. No data change. Thank you.'
 )
 sp()
 
-h2('3.7  DTP — YES/NO confirmation before DHIS2 write-back')
+h2('3.8  DTP — follow-up for option 4 (specific value)')
+mono(
+    '[DQ-BK19] Reply with the correct dose count\n'
+    '(numbers only, e.g. 72). No other text.'
+)
+sp()
+
+h2('3.9  DTP — YES/NO confirmation before DHIS2 write-back')
 body('Examples for options 2, 3, and 4 respectively:')
 mono(
     '[DQ-BK19] Confirm change:\n'
@@ -256,7 +283,7 @@ mono(
 )
 sp()
 
-h2('3.8  DTP — resolution confirmation')
+h2('3.10  DTP — resolution confirmation')
 mono(
     '[DQ-BK19] Noted. Value corrected to 60 in DHIS2. Thank you.'
 )
@@ -267,22 +294,22 @@ mono(
 )
 sp()
 
-h2('3.9  Missing report — initial notification (SUBMIT + 4 options)')
-body('Aligned with AHEAD guide section 2.4. Recovery before imputation: the SUBMIT option is presented first so the worker can locate and submit the missing report. Cleaning options are a fallback only if recovery fails. Options 1, 2, 3, and 4 do not write data automatically — options 2 and 3 are flagged for HQ imputation; option 1 is noted; option 4 is noted. SUBMIT acknowledges and closes the issue once the submission appears.')
+h2('3.11  Missing report — initial notification (SUBMIT + 4 options)')
+body('Aligned with AHEAD guide section 2.3. Recovery before imputation: SUBMIT is presented first so the worker can locate and submit the missing report. Options 2 and 3 are flagged for HQ imputation; option 1 accepts a free-text date; option 4 prompts for a free-text comment. SUBMIT acknowledges and closes the issue once the submission appears.')
 mono(
     'AHEAD DQ Alert [DQ-MN33]\n'
-    'Addi Arekay Health Center\n'
-    'No completed EPI report for May 2026.\n'
-    'Can you submit the report? Reply SUBMIT.\n'
-    'Or if data is unavailable, select:\n'
+    'Addi Arekay Health Center — Jun 2026\n'
+    'Monthly EPI report not received.\n'
+    '\n'
+    'Reply SUBMIT if already submitted, or reply with a number only (1-4):\n'
     '1. Will submit by [date]\n'
     '2. Data cannot be recovered\n'
     '3. Facility closed / no service that month\n'
-    '4. Other'
+    '4. Other reason (add comment)'
 )
 sp()
 
-h2('3.10  Missing report — follow-up for SUBMIT')
+h2('3.12  Missing report — follow-up for SUBMIT')
 mono(
     '[DQ-MN33] Thanks — checking DHIS2 within the hour.\n'
     'Issue will close automatically once your\n'
@@ -290,7 +317,7 @@ mono(
 )
 sp()
 
-h2('3.11  Missing report — follow-up for option 1 (will submit by date)')
+h2('3.13  Missing report — follow-up for option 1 (will submit by date)')
 body('Agent asks for the target date before acknowledging.')
 mono(
     '[DQ-MN33] Please reply with the date you will submit\n'
@@ -304,7 +331,7 @@ mono(
 )
 sp()
 
-h2('3.12  Missing report — options 2, 3, and 4 (no auto write-back)')
+h2('3.14  Missing report — options 2, 3, and 4 (no auto write-back)')
 body('Options 2 and 3 are flagged for HQ zero imputation. Option 4 is noted. None trigger a DHIS2 write-back.')
 mono(
     '[DQ-MN33] Noted. Data cannot be recovered — flagged\n'
@@ -321,7 +348,7 @@ mono(
 )
 sp()
 
-h2('3.13  Retry (24h no reply — up to 3 times)')
+h2('3.15  Retry (24h no reply — up to 3 times)')
 mono(
     '[DQ-4XDF] Reminder (2 of 3):\n'
     'Addi Arekay HC, Jun 2026 — BCG under-1 = 970\n'
@@ -329,7 +356,7 @@ mono(
 )
 sp()
 
-h2('3.14  Woreda escalation summary')
+h2('3.16  Woreda escalation summary')
 body('Sent to the woreda HMIS officer after 72h of no facility-level resolution. One SMS per woreda covers all open issues in that woreda.')
 mono(
     '[DQ-WOREDA] Addi Arekay Woreda\n'
@@ -340,7 +367,7 @@ mono(
 )
 sp()
 
-h2('3.15  Monthly national digest')
+h2('3.17  Monthly national digest')
 body('Sent to the national TWG on the first of each month covering all prior-month unresolved issues.')
 mono(
     '[DQ-MONTHLY] Jun 2026 Summary\n'
@@ -383,20 +410,24 @@ mono(
 )
 sp()
 
-h2('4.2  Outlier — option 2: keep as-is (2 turns — no data change)')
-body('Resolves immediately with no DHIS2 modification and no confirmation step.')
+h2('4.2  Outlier — option 2: keep as-is with comment (3 turns — no data change)')
+body('Per AHEAD guide section 2.2, "keep as-is" requires an explanation in comment. Agent prompts for free-text reason before closing. No DHIS2 modification.')
 mono(
     'Agent     AHEAD DQ Alert [DQ-4XDF]\n'
     '          Addi Arekay Health Center — Jun 2026\n'
-    '          BCG: 970 doses (expected 79–114)\n'
-    '          Reply with option number:\n'
+    '          BCG (under 1 year): 970 doses (expected 79–114)\n'
+    '          Reply with a number only (1-6):\n'
     '          1. Replace with 6-month average\n'
-    '          2. Keep as-is (no action)\n'
+    '          2. Keep as-is (add comment)\n'
     '          ...\n'
     '\n'
     'Facility  2\n'
     '\n'
-    'Agent     [DQ-4XDF] Noted. No change applied. Issue resolved. Thank you.'
+    'Agent     [DQ-4XDF] Please describe the reason:\n'
+    '\n'
+    'Facility  Campaign activity in June — outreach doses inflated numbers\n'
+    '\n'
+    'Agent     [DQ-4XDF] Noted. Comment recorded. No data change. Thank you.'
 )
 sp()
 
@@ -520,20 +551,29 @@ mono(
 )
 sp()
 
-h2('4.8  DTP inconsistency — option 1: keep as-is (2 turns — no data change)')
-body('Resolves immediately with no DHIS2 modification.')
+h2('4.8  DTP inconsistency — option 1: keep as-is with comment (3 turns — no data change)')
+body('Per AHEAD guide section 2.4, "keep as-is" requires a comment. Agent prompts for free-text reason before closing. No DHIS2 modification.')
 mono(
     'Facility  1\n'
     '\n'
-    'Agent     [DQ-BK19] Noted. No change applied. Issue resolved. Thank you.'
+    'Agent     [DQ-BK19] Please describe the reason:\n'
+    '\n'
+    'Facility  Catch-up doses from prior month included — already verified\n'
+    '\n'
+    'Agent     [DQ-BK19] Noted. Comment recorded. No data change. Thank you.'
 )
 sp()
 
-h2('4.9  DTP inconsistency — option 5: other (noted, no write-back, 2 turns)')
+h2('4.9  DTP inconsistency — option 5: other reason with comment (3 turns)')
+body('Per AHEAD guide section 2.4, "other" requires the reason to be specified in a comment.')
 mono(
     'Facility  5\n'
     '\n'
-    'Agent     [DQ-BK19] Noted. Flagged for HQ review. Issue logged. Thank you.'
+    'Agent     [DQ-BK19] Please describe the reason:\n'
+    '\n'
+    'Facility  Data entry error — will recheck paper tally\n'
+    '\n'
+    'Agent     [DQ-BK19] Noted. Comment recorded. No data change. Thank you.'
 )
 sp()
 
@@ -608,19 +648,23 @@ tbl(
     [
         ['awaiting_option',
          'Alert has been sent; waiting for the worker to pick a numbered option',
-         'A digit matching one of the presented options',
-         'awaiting_followup (if option needs input) or awaiting_confirmation (if option writes data directly) or closed (if no-write option)'],
+         'A single digit in range 1–N (or SUBMIT for missing reports). Anything else triggers a re-prompt: "Invalid reply. Please reply with a single number between 1 and N only."',
+         'awaiting_followup (if option needs a value) or awaiting_reason (if option needs a comment) or awaiting_confirmation (if auto-computed) or closed (if immediate)'],
         ['awaiting_followup',
-         'Worker picked an option that requires additional input (e.g. a specific value or a date)',
-         'The required input (a number, a date, etc.)',
-         'awaiting_confirmation (if option writes data) or closed (if HQ-flagged option)'],
+         'Worker picked an option that requires a numeric value or date',
+         'A bare integer or decimal (dose correction options — strict); any non-empty text (date option — free text)',
+         'awaiting_confirmation'],
+        ['awaiting_reason',
+         'Worker picked an option that requires a comment (keep as-is, other reason)',
+         'Any non-empty text — accepted as-is and logged to resolution notes',
+         'closed'],
         ['awaiting_confirmation',
          'Agent has shown the exact proposed change; waiting for YES/NO before writing to DHIS2',
          'YES or NO. If NO, issue reverts to awaiting_option and the alert is re-sent.',
          'closed (on YES) or awaiting_option (on NO)'],
         ['closed',
          'Issue is fully resolved; no further action expected',
-         '(no further input expected — any reply is ignored or acknowledged)',
+         '(no further input expected)',
          '—'],
     ]
 )
@@ -744,7 +788,7 @@ tbl(
         ['Reference ID not found or already closed',
          'Agent replies: "Ref ID not recognised or issue already closed. View all issues at <issue log URL>."'],
         ['Worker replies with non-numeric text when a number is expected',
-         'Claude returns intent=unknown. Agent replies: "Please reply with a number (the option number or the correct value) as prompted."'],
+         'Agent re-prompts: "Invalid reply. Please reply with a single number between 1 and N only." (for option selection) or "Invalid reply. Please reply with a number only (e.g. 97)." (for dose correction). No external AI is involved.'],
         ['Worker replies NO at confirmation step',
          'Issue reverts to awaiting_option state. The original alert is re-sent verbatim so the worker can choose a different option.'],
         ['Worker sends a value that still looks like an outlier',
@@ -819,7 +863,7 @@ tbl(
         ['Full escalation cascade (facility → national)',       'Yes', '—',  ''],
         ['Apply corrections back to DHIS2 via API',            'Yes', '—',  ''],
         ['Issue log web page (standalone Flask, auto-refresh)', 'Yes', '—',  'Dashboard at localhost:5001/issues'],
-        ['Claude API (reply parsing + message generation)',     'Yes', '—',  ''],
+        ['Strict input validation (no external AI in conversation loop)', 'Yes', '—', 'All reply parsing is regex/int validation with re-prompts'],
         ['English-language messages only',                      'Yes', '—',  ''],
         ['5-method outlier ensemble (R script integration)',    '—',  'Yes', 'Requires access to AHEAD R scripts; deferred'],
         ['Name consistency check',                              '—',  'Yes', 'Not covered by DHIS2 built-in rules'],
@@ -865,7 +909,7 @@ body('Demos A and B use June 2026 (202606) — a period with no data yet. Demo C
 sp()
 body('Addi Arekay Health Center is a Health Center (tier 2). BCG under-1 baseline: ~97/month (range 80–115 across 22 months). Penta1 under-1: ~87. Penta3 under-1: ~71. Outlier detection threshold: Z-score > 2.0 SD AND absolute diff > 100 doses. Detection is within ~30 seconds via lastUpdated polling.')
 sp()
-body('Between demo runs, reset with: curl -s -X POST http://localhost:5001/api/reset-demo — this clears both the agent DB and the June 2026 DHIS2 data so each run starts from a blank form. No agent restart needed.')
+body('Between demo runs, reset with: pkill -f "agent/app.py"; sleep 1 && python3 agent/app.py --reset — this blanks all June 2026 DHIS2 data, removes the complete registration (so the form shows as Incomplete), clears the agent DB, and restarts the agent in one command.')
 sp()
 
 h2('Demo A — Statistical Outlier: Addi Arekay Health Center, Jun 2026 (~6 min)')

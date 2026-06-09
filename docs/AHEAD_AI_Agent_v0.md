@@ -35,10 +35,10 @@ Facility submits           30s poll detects              Facility worker
 | DQ engine | `agent/dq_engine.py` | Runs 3 checks; creates issue records |
 | DHIS2 client | `agent/dhis2_client.py` | All API calls — poll, outlier Z-score, DTP fetch, write-back |
 | SMS / WhatsApp | `agent/sms.py` | Twilio wrapper + message templates |
-| Conversation state | `agent/state_machine.py` | Routes inbound replies; calls Claude to parse options; manages YES/NO confirmation |
+| Conversation state | `agent/state_machine.py` | Routes inbound replies; strict input validation; manages YES/NO confirmation |
 | Database | `agent/db.py` | SQLite — `contacts`, `issues`, `conversations`, `org_unit_hierarchy`, `poll_state` |
 
-**Third-party services:** Twilio WhatsApp (outbound alerts + inbound replies), Claude API `claude-haiku-4-5` (parses which numbered option the user selected — does NOT generate messages), ngrok (local tunnel for webhook in demo mode).
+**Third-party services:** Twilio WhatsApp (outbound alerts + inbound replies), ngrok (local tunnel for webhook in demo mode). No external AI API is used in the conversation loop — all reply parsing is strict input validation.
 
 ---
 
@@ -50,7 +50,6 @@ Facility submits           30s poll detects              Facility worker
 |---|---|
 | Docker Desktop (running) | docker.com |
 | Python 3.x + `pip3 install -r requirements.txt` | — |
-| Claude API key | console.anthropic.com |
 | Twilio account + phone number | twilio.com |
 | ngrok account + authtoken | ngrok.com |
 | `.env` filled in (see `.env.example`) | project root |
@@ -93,21 +92,31 @@ Copy the ngrok URL → paste into Twilio WhatsApp sandbox as the webhook ("When 
 
 ### Before each demo: reset
 
-While the agent is running, call:
+Run this single command — it handles everything and the agent **restarts clean**:
 
 ```bash
-curl -s -X POST http://localhost:5001/api/reset-demo
+pkill -f "agent/app.py"; sleep 1 && python3 agent/app.py --reset
 ```
 
-This does three things atomically: deletes all June 2026 data values from DHIS2 for Addi Arekay HC, clears the agent DB (issues, conversations), and advances the poll cursor to now. **No agent restart needed.** Refresh `localhost:5001/issues` and it will be empty.
+This does five things in sequence:
 
-> **Why DHIS2 data must be cleared:** DHIS2 does not update `lastUpdated` when you save the same value that's already stored. If BCG is already 970 and you type 970 again, DHIS2 silently skips the write — invisible to the poll. Clearing DHIS2 first ensures every demo entry is a genuine first write.
+1. Kills any running agent process
+2. Blanks all June 2026 data values in DHIS2 for Addi Arekay HC (uses `POST value=""` — DHIS2 rejects `DELETE` on locked datasets with 409)
+3. Removes the "Complete" registration so the form shows as **incomplete** at demo start
+4. Clears the agent DB (issues, conversations)
+5. Advances the poll cursor to now, then starts the scheduler
 
-If you need to restart the agent (port conflict):
-
-```bash
-pkill -f "agent/app.py"; sleep 1 && python3 agent/app.py
+You will see in the terminal:
 ```
+[APP] demo reset — cleared N DHIS2 values; 0 error(s); cursor → 2026-...
+[APP] demo reset — complete registration removed
+```
+
+Refresh `localhost:5001/issues` and it will be empty. The DHIS2 form will show no values and status = Incomplete.
+
+> **Why DHIS2 data must be cleared:** DHIS2 does not update `lastUpdated` when you save the same value that's already stored. If BCG is already 970 and you type 970 again, DHIS2 silently skips the write — invisible to the poll. Blanking DHIS2 first ensures every demo entry is a genuine first write with a fresh timestamp.
+
+> **Why the complete registration must be removed:** DHIS2 tracks "Complete" status separately from data values. Blanking the values alone leaves the form marked as complete. The reset explicitly removes the registration so both the data and the form status start clean.
 
 ---
 
@@ -144,9 +153,9 @@ AHEAD DQ Alert [DQ-XXXX]
 Addi Arekay Health Center — Jun 2026
 BCG (under 1 year): 970 doses (expected 79–114)
 
-Reply with option number:
+Reply with a number only (1-6):
 1. Replace with 6-month average
-2. Keep as-is (no action)
+2. Keep as-is (add comment)
 3. Set to zero
 4. Replace with specific value
 5. At health facility doses only
@@ -197,12 +206,12 @@ DTP1 (under 1 year): 60 doses
 DTP3 (under 1 year): 90 doses
 (DTP3 > DTP1, gap: 50%)
 
-Reply with option number:
-1. Keep as-is (no action)
+Reply with a number only (1-5):
+1. Keep as-is (add comment)
 2. Use DTP1 value for both
 3. Use DTP3 value for both
 4. Replace with specific value
-5. Other reason
+5. Other reason (add comment)
 ```
 
 **Example confirmation (option 2 — use DTP1 for both):**
@@ -240,18 +249,18 @@ AHEAD DQ Alert [DQ-ZZZZ]
 Addi Arekay Health Center — Jun 2026
 Monthly EPI report not received.
 
-Reply SUBMIT if already submitted, or:
+Reply SUBMIT if already submitted, or reply with a number only (1-4):
 1. Will submit by [date]
 2. Data cannot be recovered
 3. Facility closed / no service that month
-4. Other reason
+4. Other reason (add comment)
 ```
 
 ---
 
 ## 5. Response Options
 
-Options match the AHEAD Excel dropdown schema (reference guide sections 2.2–2.4). Claude parses which number was selected; it does not generate the options.
+Options match the AHEAD Excel dropdown schema (reference guide sections 2.2–2.4). The agent accepts only a single digit reply; any other input triggers a re-prompt: *"Invalid reply. Please reply with a single number between 1 and N only."*
 
 **All options that modify DHIS2 data require a YES/NO confirmation before being applied.** On NO, the original options are re-sent.
 
@@ -260,32 +269,33 @@ Options match the AHEAD Excel dropdown schema (reference guide sections 2.2–2.
 | Check | # | Option | What happens |
 |---|---|---|---|
 | Outlier | 1 | Replace with 6-month average | Agent computes avg of 3 periods before + 3 after; shows value in confirmation; writes on YES |
-| Outlier | 2 | Keep as-is | Closes issue, no data change |
+| Outlier | 2 | Keep as-is (add comment) | Agent prompts for free-text explanation; comment logged; no data change (per AHEAD guide 2.2) |
 | Outlier | 3 | Set to zero | Confirms then writes 0 |
 | Outlier | 4 | Replace with specific value | User provides number → confirmation → writes |
 | Outlier | 5 | At health facility doses only | Noted for HQ; no auto write-back |
 | Outlier | 6 | Outreach doses only | Noted for HQ; no auto write-back |
-| DTP | 1 | Keep as-is | Closes issue, no data change |
+| DTP | 1 | Keep as-is (add comment) | Agent prompts for free-text comment; comment logged; no data change (per AHEAD guide 2.4) |
 | DTP | 2 | Use DTP1 value for both | Writes Penta3 = Penta1 after confirmation |
 | DTP | 3 | Use DTP3 value for both | Writes Penta1 = Penta3 after confirmation |
 | DTP | 4 | Replace with specific value | User provides number → confirmation → writes |
-| DTP | 5 | Other | Noted, no data change |
+| DTP | 5 | Other reason (add comment) | Agent prompts for free-text reason; comment logged; no data change |
 | Missing | SUBMIT | Already submitted | Acknowledged, issue closed |
-| Missing | 1 | Will submit by [date] | User provides date → confirmation |
+| Missing | 1 | Will submit by [date] | User provides date (free text, logged as-is); no write-back |
 | Missing | 2 | Data cannot be recovered | Noted; flagged for HQ imputation |
 | Missing | 3 | Facility closed that month | Noted; flagged for HQ zero imputation |
-| Missing | 4 | Other | Noted, no data change |
+| Missing | 4 | Other reason (add comment) | Agent prompts for free-text reason; comment logged; no data change |
 
 ---
 
 ## 6. Conversation States
 
-Each inbound reply moves the conversation through one of four states:
+Each inbound reply moves the conversation through one of five states:
 
 | State | What it means | How it ends |
 |---|---|---|
-| `awaiting_option` | Alert sent; waiting for numbered reply | User sends 1–6 or SUBMIT |
-| `awaiting_followup` | Option selected; agent asked for a value | User sends number or date |
+| `awaiting_option` | Alert sent; waiting for numbered reply | User sends single digit (1–N) or SUBMIT |
+| `awaiting_followup` | Option selected; agent asked for a numeric value or date | User sends number (strict) or date (free text) |
+| `awaiting_reason` | Option requires a comment (keep as-is, other reason) | User sends any non-empty text — accepted as-is |
 | `awaiting_confirmation` | Value ready; agent shows exactly what will change | User replies YES or NO |
 | `closed` | Issue resolved or confirmed OK | — |
 
@@ -444,7 +454,7 @@ Open `localhost:5001/issues`. Show:
 |---|---|
 | `agent/dq_engine.py` | All three check functions — read this to understand detection logic |
 | `agent/dhis2_client.py` | Every DHIS2 API call — outlier Z-score, write-back, poll |
-| `agent/state_machine.py` | Conversation routing, Claude parsing, write-back execution |
+| `agent/state_machine.py` | Conversation routing, strict input validation, write-back execution |
 | `config.py` | All tunable thresholds — change here without touching code |
 | `docs/AHEAD_project_notes.pdf` | UNICEF AHEAD reference guide — source of truth for all thresholds and response options |
 | `docs/AHEAD_AI_Tech_Architecture.docx` | Full technical spec — DB schema, API call examples, state machine diagram |
